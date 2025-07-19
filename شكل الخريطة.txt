@@ -1,0 +1,63 @@
+iqama-center/
+├── .env                # (مقترح) متغيرات البيئة (رابط قاعدة البيانات، مفاتيح API، إلخ)
+├── .gitignore          # (مقترح) تجاهل ملفات مثل node_modules و.env
+├── index.js            # الملف الرئيسي: إعداد الخادم، المسارات، منطق الأعمال
+├── package.json        # تعريف المشروع، السكريبتات، الاعتماديات
+├── package-lock.json   # قفل إصدارات الاعتماديات (يُنشأ تلقائياً)
+├── vercel.json         # إعدادات نشر المشروع على Vercel
+├── Req.md              # ملف متطلبات المشروع
+├── R1.md - R5.md       # ملفات متطلبات/تحليل/توثيق (قد تكون لكل وحدة أو ميزة)
+├── RF1.md - RF5.md     # ملفات متطلبات وظيفية/غير وظيفية
+├── شكل الخريطة.txt     # رسم أو وصف هيكل المشروع (نصي)
+├── services/
+│   └── notificationService.js   # خدمة إرسال الإشعارات (منفصلة عن المنطق الرئيسي)
+├── uploads/            # مجلد رفع الملفات (صور، إثباتات دفع، إلخ)
+├── views/              # جميع قوالب الواجهة (EJS)
+│   ├── admin_course_form.ejs
+│   ├── admin_course_scheduler.ejs
+│   ├── admin_requests.ejs
+│   ├── admin_users.ejs
+│   ├── completed_courses.ejs
+│   ├── course_details.ejs
+│   ├── courses.ejs
+│   ├── dashboard_container.ejs   # القالب الرئيسي لكل صفحات لوحة التحكم
+│   ├── dashboard.ejs
+│   ├── error.ejs
+│   ├── finance_user.ejs
+│   ├── home.ejs
+│   ├── login.ejs
+│   ├── messages.ejs
+│   ├── performance.ejs
+│   ├── profile.ejs
+│   ├── signup.ejs
+│   ├── tasks.ejs
+│   ├── teacher_gradebook.ejs
+│   ├── dashboards/      # قوالب لوحات التحكم حسب الدور
+│   │   ├── admin_dashboard.ejs
+│   │   ├── default_dashboard.ejs
+│   │   ├── finance_dashboard.ejs
+│   │   ├── head_dashboard.ejs
+│   │   ├── parent_dashboard.ejs
+│   │   ├── student_dashboard.ejs
+│   │   └── teacher_dashboard.ejs
+│   ├── pages/           # قوالب صفحات لوحة التحكم الفرعية
+│   │   ├── admin_course_form.ejs
+│   │   ├── admin_course_scheduler.ejs
+│   │   ├── admin_requests.ejs
+│   │   ├── admin_users.ejs
+│   │   ├── completed_courses.ejs
+│   │   ├── course_details.ejs
+│   │   ├── courses.ejs
+│   │   ├── finance_user.ejs
+│   │   ├── messages.ejs
+│   │   ├── performance.ejs
+│   │   ├── profile.ejs
+│   │   ├── teacher_gradebook.ejs
+│   └── partials/        # أجزاء واجهة مشتركة (تضمين)
+│       ├── ai_assistant.ejs
+│       ├── footer.ejs
+│       ├── header.ejs
+│       └── sidebar.ejs
+
+التشغيل محليًا (اختياري): افتح الطرفية في مجلد المشروع ونفذ الأمر npm run dev  
+يمكنك الآن زيارة http://localhost:3000 في متصفحك لترى الموقع.

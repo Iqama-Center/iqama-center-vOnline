@@ -1,0 +1,84 @@
+import { Pool } from 'pg';
+
+// Database configuration with improved connection settings
+const dbConfig = {
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? {
+    rejectUnauthorized: false,
+  } : false,
+  // Improved connection pool settings
+  max: 20,
+  idleTimeoutMillis: 60000, // Increased from 30000 to 60000
+  connectionTimeoutMillis: 30000, // Increased from 10000 to 30000
+  // Add retry logic
+  retryDelay: 1000, // 1 second between retries
+  retryAttempts: 3, // Try 3 times before failing
+};
+
+// Create pool instance with improved error handling
+let pool;
+
+if (typeof window === 'undefined') {
+  // Server-side only
+  const globalForDb = globalThis;
+  
+  if (!globalForDb.pool) {
+    globalForDb.pool = new Pool(dbConfig);
+    
+    // Enhanced error handling
+    globalForDb.pool.on('error', (err) => {
+      console.error('Database pool error:', err);
+      
+      // If the connection was terminated unexpectedly, try to recover
+      if (err.message.includes('terminated') || err.message.includes('timeout')) {
+        console.log('Attempting to recover from database connection error...');
+        
+        // Give some time before trying to reconnect
+        setTimeout(() => {
+          try {
+            // Test the connection
+            globalForDb.pool.query('SELECT 1')
+              .then(() => console.log('Database connection recovered'))
+              .catch(recErr => console.error('Failed to recover database connection:', recErr));
+          } catch (recErr) {
+            console.error('Error during connection recovery attempt:', recErr);
+          }
+        }, 2000);
+      }
+    });
+    
+    globalForDb.pool.on('connect', () => {
+      console.log('Database connected successfully');
+    });
+  }
+  
+  pool = globalForDb.pool;
+} else {
+  // Client-side fallback (should not be used)
+  pool = null;
+}
+
+// Helper function to execute queries with retry logic
+export async function executeQuery(queryText, params = []) {
+  let attempts = 0;
+  const maxAttempts = 3;
+  
+  while (attempts < maxAttempts) {
+    try {
+      return await pool.query(queryText, params);
+    } catch (error) {
+      attempts++;
+      
+      // If it's a connection error and we haven't reached max attempts, retry
+      if ((error.message.includes('terminated') || error.message.includes('timeout')) && attempts < maxAttempts) {
+        console.log(`Database query failed (attempt ${attempts}/${maxAttempts}), retrying in 1s...`);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } else {
+        // Either it's not a connection error or we've reached max attempts
+        throw error;
+      }
+    }
+  }
+}
+
+export default pool;
