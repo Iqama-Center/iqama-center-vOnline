@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import Layout from '../components/Layout';
 import { withAuth } from '../lib/withAuth';
-
 import pool from '../lib/db';
+import { getFilteredCourses } from '../lib/queryOptimizer';
 
 const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEnrolledCourses }) => {
     const [courses, setCourses] = useState(initialCourses || []);
@@ -164,26 +164,39 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
                                     </div>
                                 </div>
                                 <div className="course-status">
-                                    <span className={`status-badge ${course.enrollment_status === 'pending_approval' ? 'approval' : 'pending'}`}>
-                                        {course.enrollment_status === 'pending_approval' ? 'في انتظار الموافقة' : 'في انتظار الدفع'}
+                                    <span className={`status-badge ${course.enrollment_status === 'pending_approval' ? 'approval' : course.enrollment_status === 'pending_payment' ? 'pending' : 'active'}`}>
+                                        {course.enrollment_status === 'pending_approval' ? 'في انتظار الموافقة' : 
+                                         course.enrollment_status === 'pending_payment' ? 'في انتظار الدفع' :
+                                         course.enrollment_status === 'active' ? 'مسجل ونشط' : 
+                                         course.enrollment_status === 'waiting_start' ? 'في انتظار البداية' : course.enrollment_status}
                                     </span>
                                 </div>
                                 <div className="enrollment-info">
                                     <small>تاريخ التسجيل: {new Date(course.enrollment_date).toLocaleDateString('ar-EG')}</small>
                                 </div>
                                 <div className="course-actions">
-                                    <button 
-                                        onClick={() => handleUnenroll(course.id)}
-                                        className="unenroll-btn secondary"
-                                    >
-                                        ❌ إلغاء التسجيل
-                                    </button>
+                                    {['pending_payment', 'pending_approval'].includes(course.enrollment_status) && (
+                                        <button 
+                                            onClick={() => handleUnenroll(course.id)}
+                                            className="unenroll-btn secondary"
+                                        >
+                                            ❌ إلغاء التسجيل
+                                        </button>
+                                    )}
                                     {course.enrollment_status === 'pending_payment' && (
                                         <button 
                                             onClick={() => window.location.href = '/student-finance'}
                                             className="payment-btn primary"
                                         >
                                             💳 دفع المصاريف لتأكيد الحجز
+                                        </button>
+                                    )}
+                                    {course.enrollment_status === 'active' && (
+                                        <button 
+                                            onClick={() => window.location.href = `/courses/${course.id}`}
+                                            className="view-course-btn primary"
+                                        >
+                                            📚 عرض الدورة
                                         </button>
                                     )}
                                 </div>
@@ -362,6 +375,23 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
                     background: #e2e3f1;
                     color: #6f42c1;
                 }
+                .view-course-btn {
+                    background-color: #007bff;
+                    color: white;
+                    padding: 10px 15px;
+                    border: none;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-size: 1rem;
+                    font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    font-weight: 500;
+                    transition: background-color 0.3s ease;
+                    flex: 1;
+                    min-width: 150px;
+                }
+                .view-course-btn:hover {
+                    background-color: #0056b3;
+                }
                 .enrolled-courses-container {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -429,32 +459,29 @@ export const getServerSideProps = withAuth(async (context) => {
     // No role restriction - anyone can view and enroll in courses
 
     try {
-        // Get courses user can enroll in (not enrolled yet)
-        const coursesResult = await pool.query(`
-            SELECT c.* FROM courses c
-            WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true))
-            AND NOT EXISTS (
-                SELECT 1 FROM enrollments e WHERE e.course_id = c.id AND e.user_id = $1
-            )
-            ORDER BY c.created_at DESC
-        `, [user.id]);
+        // Get courses user can enroll in using optimized query
+        const coursesResult = await getFilteredCourses(
+            { status: 'active', limit: 50 }, 
+            user.id
+        );
 
-        // Get courses user is enrolled in but can potentially withdraw from
+        // Get courses user is enrolled in (all statuses except completed/cancelled)
         const enrolledCoursesResult = await pool.query(`
-            SELECT c.*, e.status as enrollment_status, e.id as enrollment_id, c.created_at as enrollment_date
+            SELECT c.id, c.name, c.description, c.details, c.status, c.created_at,
+                   e.status as enrollment_status, e.id as enrollment_id, e.created_at as enrollment_date
             FROM courses c
             JOIN enrollments e ON c.id = e.course_id
             WHERE e.user_id = $1 
-            AND e.status IN ('pending_payment', 'pending_approval')
-            AND (c.status = 'published' OR c.status = 'active')
-            AND (c.start_date IS NULL OR c.start_date > CURRENT_DATE)
-            ORDER BY c.created_at DESC
+            AND e.status IN ('pending_payment', 'pending_approval', 'active', 'waiting_start')
+            AND e.status != 'cancelled'
+            ORDER BY e.created_at DESC
+            LIMIT 20
         `, [user.id]);
 
         return {
             props: {
                 user: JSON.parse(JSON.stringify(user)),
-                courses: JSON.parse(JSON.stringify(coursesResult.rows)),
+                courses: JSON.parse(JSON.stringify(coursesResult)),
                 enrolledCourses: JSON.parse(JSON.stringify(enrolledCoursesResult.rows))
             }
         };

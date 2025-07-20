@@ -1,5 +1,6 @@
 import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
+import { getFilteredCourses, getUserById } from '../../../lib/queryOptimizer';
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
@@ -14,10 +15,10 @@ export default async function handler(req, res) {
     if (token) {
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.id]);
-            if (userResult.rows.length > 0) {
+            const user = await getUserById(decoded.id, ['id', 'details']);
+            if (user) {
                 userId = decoded.id;
-                userDetails = userResult.rows[0].details || {};
+                userDetails = user.details || {};
             }
         } catch (err) {
             // Continue without user context
@@ -33,96 +34,35 @@ export default async function handler(req, res) {
             country, 
             price_min, 
             price_max,
-            status = 'active'
+            status = 'active',
+            limit = 50,
+            offset = 0
         } = req.query;
 
-        let query = `
-            SELECT 
-                c.*,
-                COUNT(e.id) as current_enrollment,
-                CASE 
-                    WHEN COUNT(e.id) >= c.max_enrollment THEN 'full'
-                    WHEN COUNT(e.id) >= c.min_enrollment THEN 'available'
-                    ELSE 'waiting'
-                END as availability_status,
-                u.full_name as creator_name
-            FROM courses c
-            LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
-            LEFT JOIN users u ON c.created_by = u.id
-            WHERE c.status = $1
-        `;
-        
-        const params = [status];
-        let paramCount = 1;
+        // Use optimized query function
+        const filters = {
+            role,
+            gender,
+            age_min,
+            age_max,
+            country,
+            price_min,
+            price_max,
+            status,
+            limit: parseInt(limit),
+            offset: parseInt(offset)
+        };
 
-        // Filter by target roles
-        if (role) {
-            paramCount++;
-            query += ` AND (c.details->>'target_roles' IS NULL OR c.details->>'target_roles' LIKE $${paramCount})`;
-            params.push(`%"${role}"%`);
-        }
+        const courses = await getFilteredCourses(filters, userId);
 
-        // Filter by gender
-        if (gender) {
-            paramCount++;
-            query += ` AND (c.details->>'gender' IS NULL OR c.details->>'gender' = 'both' OR c.details->>'gender' = $${paramCount})`;
-            params.push(gender);
-        }
-
-        // Filter by age range
-        if (age_min) {
-            paramCount++;
-            query += ` AND (c.details->>'max_age' IS NULL OR CAST(c.details->>'max_age' AS INTEGER) >= $${paramCount})`;
-            params.push(age_min);
-        }
-
-        if (age_max) {
-            paramCount++;
-            query += ` AND (c.details->>'min_age' IS NULL OR CAST(c.details->>'min_age' AS INTEGER) <= $${paramCount})`;
-            params.push(age_max);
-        }
-
-        // Filter by country/region
-        if (country) {
-            paramCount++;
-            query += ` AND (c.details->>'target_countries' IS NULL OR c.details->>'target_countries' LIKE $${paramCount})`;
-            params.push(`%"${country}"%`);
-        }
-
-        // Filter by price range
-        if (price_min) {
-            paramCount++;
-            query += ` AND (c.details->>'price' IS NULL OR CAST(c.details->>'price' AS DECIMAL) >= $${paramCount})`;
-            params.push(price_min);
-        }
-
-        if (price_max) {
-            paramCount++;
-            query += ` AND (c.details->>'price' IS NULL OR CAST(c.details->>'price' AS DECIMAL) <= $${paramCount})`;
-            params.push(price_max);
-        }
-
-        query += `
-            GROUP BY c.id, u.full_name
-            ORDER BY 
-                CASE 
-                    WHEN COUNT(e.id) >= c.max_enrollment THEN 3
-                    WHEN COUNT(e.id) >= c.min_enrollment THEN 1
-                    ELSE 2
-                END,
-                c.created_at DESC
-        `;
-
-        const result = await pool.query(query, params);
-
-        const courses = result.rows.map(course => {
+        // Add eligibility check if user is authenticated
+        const processedCourses = courses.map(course => {
             const courseData = {
                 ...course,
                 details: course.details || {},
                 current_enrollment: parseInt(course.current_enrollment) || 0
             };
 
-            // Add eligibility check if user is authenticated
             if (userId) {
                 courseData.eligible = checkEligibility(courseData, userDetails);
                 courseData.eligibility_reasons = getEligibilityReasons(courseData, userDetails);
@@ -131,7 +71,7 @@ export default async function handler(req, res) {
             return courseData;
         });
 
-        res.status(200).json(courses);
+        res.status(200).json(processedCourses);
     } catch (err) {
         console.error('Filter courses error:', err);
         res.status(500).json({ message: 'خطأ في تحميل الدورات' });

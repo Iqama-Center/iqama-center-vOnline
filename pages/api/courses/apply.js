@@ -51,7 +51,10 @@ export default async function handler(req, res) {
         }
 
         // Get user details for eligibility check
-        const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [decoded.id]);
+        const userResult = await pool.query(
+            'SELECT id, full_name, email, role, details FROM users WHERE id = $1', 
+            [decoded.id]
+        );
         const user = userResult.rows[0];
 
         // Check user eligibility based on course requirements

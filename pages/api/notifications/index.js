@@ -1,5 +1,6 @@
 import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
+import { getNotifications } from '../../../lib/queryOptimizer';
 
 
 
@@ -11,12 +12,9 @@ export default async function handler(req, res) {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.id;
 
-        const result = await pool.query(
-            'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 20',
-            [userId]
-        );
+        const notifications = await getNotifications(userId, 20);
 
-        res.status(200).json(result.rows);
+        res.status(200).json(notifications);
     } catch (err) {
         console.error("Get notifications error:", err);
         res.status(500).json({ message: 'Error fetching notifications.' });

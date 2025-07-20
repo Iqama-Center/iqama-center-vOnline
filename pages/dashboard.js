@@ -1,6 +1,7 @@
 import React from 'react';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
+import { getDashboardStats } from '../lib/queryOptimizer';
 import Layout from '../components/Layout';
 import AdminDashboard from '../components/dashboards/AdminDashboard';
 import FinanceDashboard from '../components/dashboards/FinanceDashboard';
@@ -46,25 +47,11 @@ export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
     let props = { user };
 
-    if (user.role === 'finance') {
-        const statsRes = await pool.query(`
-            SELECT 
-                (SELECT COUNT(*) FROM payments WHERE status = 'pending_review') as pending_review_count,
-                (SELECT COUNT(*) FROM payments WHERE status = 'due') as due_count,
-                (SELECT COUNT(*) FROM payments WHERE status = 'late') as late_count,
-                (SELECT SUM(amount) FROM payments WHERE status = 'paid' AND paid_at >= NOW() - INTERVAL '30 days') as total_paid_this_month;
-        `);
-        props.stats = JSON.parse(JSON.stringify(statsRes.rows[0]));
+    if (['finance', 'admin', 'head'].includes(user.role)) {
+        props.stats = await getDashboardStats(user.role, user.id);
     }
 
     if (user.role === 'admin') {
-        const statsRes = await pool.query(`
-            SELECT
-                (SELECT COUNT(*) FROM users) as total_users,
-                (SELECT COUNT(*) FROM courses WHERE (status = 'active' OR (status = 'published' AND is_published = true))) as total_courses,
-                (SELECT COUNT(*) FROM payments WHERE status = 'due') as pending_payments;
-        `);
-        props.stats = JSON.parse(JSON.stringify(statsRes.rows[0]));
 
         // Get recent users
         const recentUsersRes = await pool.query(`
@@ -101,15 +88,6 @@ export const getServerSideProps = withAuth(async (context) => {
     }
 
     if (user.role === 'head') {
-        const statsRes = await pool.query(`
-            SELECT
-                (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND reports_to = $1) as teacher_count,
-                (SELECT COUNT(DISTINCT e.user_id) FROM enrollments e JOIN courses c ON e.course_id = c.id WHERE c.created_by IN (SELECT id FROM users WHERE reports_to = $1)) as student_count,
-                (SELECT COUNT(*) FROM courses WHERE status = 'published' AND is_published = true) as published_courses_count,
-                (SELECT COUNT(*) FROM courses WHERE status = 'active') as active_courses_count,
-                (SELECT COUNT(*) FROM courses WHERE status = 'draft') as draft_courses_count;
-        `, [user.id]);
-        props.stats = JSON.parse(JSON.stringify(statsRes.rows[0]));
     }
 
     if (user.role === 'parent') {

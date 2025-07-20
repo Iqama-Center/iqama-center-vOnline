@@ -844,7 +844,7 @@ export default AdminUsersPage;
 
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
-    const usersResult = await pool.query('SELECT id, full_name, email, phone, role, details FROM users ORDER BY id DESC');
+    const usersResult = await pool.query('SELECT id, full_name, email, phone, role, details FROM users ORDER BY created_at DESC LIMIT 100');
 
     return {
         props: {

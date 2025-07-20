@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { countries, validatePhoneNumber } from '../lib/countryData';
+import { validateEmail } from '../lib/validation';
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -236,23 +237,7 @@ export default function SignupPage() {
   };
 
   // Validation functions
-  const validateEmail = (email) => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const commonDomains = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'live.com'];
-    
-    if (!emailRegex.test(email)) {
-      return 'صيغة البريد الإلكتروني غير صحيحة';
-    }
-    
-    const domain = email.split('@')[1];
-    if (!commonDomains.includes(domain) && !domain.includes('.')) {
-      return 'يرجى استخدام بريد إلكتروني من مزود خدمة معروف';
-    }
-    
-    return null;
-  };
-
-  // Remove the old validatePhone function as we're using the one from countryData.js
+  // Using validateEmail from lib/validation.js and validatePhoneNumber from lib/countryData.js
 
   const handleSubmit = async (e) => {
     e.preventDefault();

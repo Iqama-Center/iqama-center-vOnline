@@ -26,10 +26,10 @@ export default async function handler(req, res) {
 
         const enrollment = enrollmentResult.rows[0];
 
-        // Check if user can unenroll (conditions: pending_payment, pending_approval, or waiting_start status, course not started yet)
-        if (!['pending_payment', 'pending_approval', 'waiting_start'].includes(enrollment.status)) {
+        // Check if user can unenroll (allow unenroll for pending statuses only)
+        if (!['pending_payment', 'pending_approval'].includes(enrollment.status)) {
             return res.status(403).json({ 
-                message: 'لا يمكن الانسحاب من الدورة بعد بدء الدورة.' 
+                message: 'لا يمكن الانسحاب من الدورة بعد تأكيد التسجيل أو بدء الدورة.' 
             });
         }
 
@@ -59,20 +59,20 @@ export default async function handler(req, res) {
             });
         }
 
-        // Delete enrollment and pending payments
+        // Update enrollment status instead of deleting
         await pool.query('BEGIN');
         
         try {
             // Delete any pending payments first
             await pool.query(
-                'DELETE FROM payments WHERE enrollment_id = $1 AND status = $2',
-                [enrollment.id, 'due']
+                'DELETE FROM payments WHERE enrollment_id = $1 AND status IN ($2, $3)',
+                [enrollment.id, 'due', 'pending']
             );
 
-            // Delete the enrollment completely
+            // Update enrollment status to cancelled instead of deleting
             await pool.query(
-                'DELETE FROM enrollments WHERE id = $1',
-                [enrollment.id]
+                'UPDATE enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+                ['cancelled', enrollment.id]
             );
 
             await pool.query('COMMIT');

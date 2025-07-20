@@ -13,7 +13,10 @@ export default async function handler(req, res) {
   const { emailOrPhone, password } = req.body;
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email = $1 OR phone = $1', [emailOrPhone]);
+    const result = await pool.query(
+      'SELECT id, full_name, email, phone, password_hash, role, account_status FROM users WHERE email = $1 OR phone = $1', 
+      [emailOrPhone]
+    );
 
     if (result.rows.length === 0) {
       return res.status(401).json({ message: 'بيانات الدخول غير صحيحة.' });
