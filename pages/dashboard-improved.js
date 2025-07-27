@@ -321,41 +321,7 @@ export async function getStaticProps() {
     }
 }
 
-/**
- * Server-side authentication and role-specific data fetching
- * This ensures the user is authenticated and fetches minimal role-specific data
- */
-export const getServerSideProps = withAuth(async (context) => {
-    const { user } = context;
-    
-    // Get static props data
-    const staticProps = await getStaticProps();
-    
-    // Add minimal user-specific data that must be server-rendered
-    let serverSideData = {};
-    
-    // Only fetch critical server-side data that affects page structure
-    if (user.role === 'admin') {
-        // For admin, we might need to know if there are critical alerts
-        try {
-            const criticalAlertsResult = await pool.query(`
-                SELECT COUNT(*) as count 
-                FROM user_edit_requests 
-                WHERE status = 'pending'
-            `);
-            serverSideData.hasCriticalAlerts = parseInt(criticalAlertsResult.rows[0]?.count || 0) > 0;
-        } catch (err) {
-            serverSideData.hasCriticalAlerts = false;
-        }
-    }
-
-    return {
-        props: {
-            user: JSON.parse(JSON.stringify(user)),
-            serverSideData,
-            ...staticProps.props
-        }
-    };
-});
+// Note: This page uses ISR only (getStaticProps) for public access
+// For authenticated features, use dashboard.js instead
 
 export default ImprovedDashboardPage;

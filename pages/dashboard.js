@@ -2,6 +2,7 @@ import React from 'react';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
 import { getDashboardStats } from '../lib/queryOptimizer';
+import { safeSerialize, createSuccessResponse, createErrorResponse, REVALIDATION_TIMES } from '../lib/isrUtils';
 import Layout from '../components/Layout';
 import AdminDashboard from '../components/dashboards/AdminDashboard';
 import FinanceDashboard from '../components/dashboards/FinanceDashboard';
@@ -44,12 +45,41 @@ const DashboardPage = (props) => {
 };
 
 /**
- * Server-side rendering for user-specific dashboard data with fast fallbacks
+ * Server-side rendering for user-specific dashboard data
+ * Note: Using SSR only since this page requires authentication
  */
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
     
     try {
+        // Get public dashboard statistics directly in SSR
+        const publicStatsResult = await pool.query(`
+            SELECT 
+                COUNT(*) as total_courses,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_courses,
+                COUNT(CASE WHEN status = 'published' THEN 1 END) as published_courses,
+                (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
+                (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL) AND account_status = 'active') as total_teachers,
+                (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_enrollments
+            FROM courses 
+            WHERE status IN ('active', 'published', 'draft')
+        `);
+
+        // Get recent public activities
+        const recentActivitiesResult = await pool.query(`
+            SELECT 
+                'course_created' as activity_type,
+                c.name as title,
+                c.created_at,
+                u.full_name as user_name,
+                c.status
+            FROM courses c
+            LEFT JOIN users u ON c.teacher_id = u.id
+            WHERE c.status IN ('active', 'published')
+            ORDER BY c.created_at DESC
+            LIMIT 10
+        `);
+
         // Fast fallback for development mode with role-specific data
         if (process.env.NODE_ENV === 'development') {
             console.log('🚀 Dashboard development mode: Using fast fallback data for', user.role);
@@ -83,6 +113,9 @@ export const getServerSideProps = withAuth(async (context) => {
                     { id: 3, user_name: 'خالد حسن', request_type: 'تحديث معلومات الاتصال', created_at: new Date().toISOString() }
                 ];
                 
+                const publicStats = publicStatsResult.rows[0] || {};
+                const recentActivities = recentActivitiesResult.rows || [];
+
                 return {
                     props: {
                         user,
@@ -91,19 +124,14 @@ export const getServerSideProps = withAuth(async (context) => {
                         recentCourses,
                         pendingRequests,
                         publicStats: {
-                            totalCourses: 25,
-                            totalStudents: 150,
-                            totalTeachers: 12,
-                            activeCourses: 18
+                            totalCourses: parseInt(publicStats.total_courses || 0),
+                            activeCourses: parseInt(publicStats.active_courses || 0),
+                            publishedCourses: parseInt(publicStats.published_courses || 0),
+                            totalStudents: parseInt(publicStats.total_students || 0),
+                            totalTeachers: parseInt(publicStats.total_teachers || 0),
+                            completedEnrollments: parseInt(publicStats.completed_enrollments || 0)
                         },
-                        recentActivities: [
-                            {
-                                activity_type: 'course_created',
-                                title: 'دورة تعليم القرآن الكريم',
-                                created_at: new Date().toISOString(),
-                                user_name: 'الأستاذ محمد أحمد'
-                            }
-                        ],
+                        recentActivities: JSON.parse(JSON.stringify(recentActivities)),
                         lastUpdated: new Date().toISOString(),
                         isDevelopmentMode: true
                     }
@@ -126,24 +154,22 @@ export const getServerSideProps = withAuth(async (context) => {
             }
             
             // For other roles (finance, head, etc.)
+            const publicStats = publicStatsResult.rows[0] || {};
+            const recentActivities = recentActivitiesResult.rows || [];
+
             return {
                 props: {
                     user,
                     stats: roleSpecificStats,
                     publicStats: {
-                        totalCourses: 25,
-                        totalStudents: 150,
-                        totalTeachers: 12,
-                        activeCourses: 18
+                        totalCourses: parseInt(publicStats.total_courses || 0),
+                        activeCourses: parseInt(publicStats.active_courses || 0),
+                        publishedCourses: parseInt(publicStats.published_courses || 0),
+                        totalStudents: parseInt(publicStats.total_students || 0),
+                        totalTeachers: parseInt(publicStats.total_teachers || 0),
+                        completedEnrollments: parseInt(publicStats.completed_enrollments || 0)
                     },
-                    recentActivities: [
-                        {
-                            activity_type: 'course_created',
-                            title: 'دورة تعليم القرآن الكريم',
-                            created_at: new Date().toISOString(),
-                            user_name: 'الأستاذ محمد أحمد'
-                        }
-                    ],
+                    recentActivities: JSON.parse(JSON.stringify(recentActivities)),
                     lastUpdated: new Date().toISOString(),
                     isDevelopmentMode: true
                 }
@@ -153,24 +179,20 @@ export const getServerSideProps = withAuth(async (context) => {
         // Get public dashboard statistics for production
         const statsResult = await getDashboardStats(null);
         
-        // Get recent public activities
-        const recentActivitiesResult = await pool.query(`
-            SELECT 
-                'course_created' as activity_type,
-                c.name as title,
-                c.created_at,
-                u.full_name as user_name
-            FROM courses c
-            LEFT JOIN users u ON c.teacher_id = u.id
-            WHERE c.status IN ('active', 'published')
-            ORDER BY c.created_at DESC
-            LIMIT 10
-        `);
-        
+        const publicStats = publicStatsResult.rows[0] || {};
+        const recentActivities = recentActivitiesResult.rows || [];
+
         let props = { 
             user,
-            publicStats: JSON.parse(JSON.stringify(statsResult)),
-            recentActivities: JSON.parse(JSON.stringify(recentActivitiesResult.rows)),
+            publicStats: {
+                totalCourses: parseInt(publicStats.total_courses || 0),
+                activeCourses: parseInt(publicStats.active_courses || 0),
+                publishedCourses: parseInt(publicStats.published_courses || 0),
+                totalStudents: parseInt(publicStats.total_students || 0),
+                totalTeachers: parseInt(publicStats.total_teachers || 0),
+                completedEnrollments: parseInt(publicStats.completed_enrollments || 0)
+            },
+            recentActivities: JSON.parse(JSON.stringify(recentActivities)),
             lastUpdated: new Date().toISOString()
         };
 

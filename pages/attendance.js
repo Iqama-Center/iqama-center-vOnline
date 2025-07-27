@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
+import { safeSerialize, createSuccessResponse, createErrorResponse, REVALIDATION_TIMES } from '../lib/isrUtils';
 
 const AttendancePage = ({ user, courses, attendanceData }) => {
     const [selectedCourse, setSelectedCourse] = useState('');
@@ -313,6 +314,10 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
     );
 };
 
+/**
+ * Server-side rendering for user-specific attendance data
+ * Note: Using SSR only since this page requires authentication
+ */
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
 
@@ -325,25 +330,86 @@ export const getServerSideProps = withAuth(async (context) => {
         };
     }
 
-    // Get courses the user can manage
-    let coursesQuery = '';
-    let queryParams = [];
+    try {
+        // Get all active courses for attendance management
+        const allCoursesResult = await pool.query(`
+            SELECT 
+                c.id, 
+                c.name, 
+                c.status,
+                c.created_at,
+                COUNT(e.id) as enrolled_count,
+                u.full_name as teacher_name
+            FROM courses c
+            LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
+            LEFT JOIN users u ON c.teacher_id = u.id
+            WHERE c.status = 'active'
+            GROUP BY c.id, c.name, c.status, c.created_at, u.full_name
+            ORDER BY c.name ASC
+        `);
 
-    if (user.role === 'teacher') {
-        coursesQuery = 'SELECT id, name FROM courses WHERE created_by = $1 AND status = \'active\'';
-        queryParams = [user.id];
-    } else {
-        coursesQuery = 'SELECT id, name FROM courses WHERE status = \'active\'';
-    }
+        // Get attendance statistics
+        const attendanceStatsResult = await pool.query(`
+            SELECT 
+                COUNT(DISTINCT course_id) as courses_with_attendance,
+                COUNT(*) as total_attendance_records,
+                COUNT(CASE WHEN status = 'present' THEN 1 END) as present_count,
+                COUNT(CASE WHEN status = 'absent' THEN 1 END) as absent_count,
+                COUNT(CASE WHEN status = 'late' THEN 1 END) as late_count
+            FROM attendance
+            WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+        `).catch(() => ({ rows: [{}] })); // Graceful fallback if table doesn't exist
 
-    const coursesResult = await pool.query(coursesQuery, queryParams);
+        // Get user-specific courses
+        let coursesQuery = '';
+        let queryParams = [];
 
-    return {
-        props: {
-            user,
-            courses: JSON.parse(JSON.stringify(coursesResult.rows))
+        if (user.role === 'teacher') {
+            coursesQuery = 'SELECT id, name FROM courses WHERE created_by = $1 AND status = \'active\'';
+            queryParams = [user.id];
+        } else {
+            coursesQuery = 'SELECT id, name FROM courses WHERE status = \'active\'';
         }
-    };
+
+        const coursesResult = await pool.query(coursesQuery, queryParams);
+
+        const allCourses = allCoursesResult.rows || [];
+        const attendanceStats = attendanceStatsResult.rows[0] || {};
+
+        return {
+            props: {
+                user,
+                courses: JSON.parse(JSON.stringify(coursesResult.rows)),
+                allCourses: JSON.parse(JSON.stringify(allCourses)),
+                attendanceStats: {
+                    coursesWithAttendance: parseInt(attendanceStats.courses_with_attendance || 0),
+                    totalRecords: parseInt(attendanceStats.total_attendance_records || 0),
+                    presentCount: parseInt(attendanceStats.present_count || 0),
+                    absentCount: parseInt(attendanceStats.absent_count || 0),
+                    lateCount: parseInt(attendanceStats.late_count || 0)
+                },
+                lastUpdated: new Date().toISOString()
+            }
+        };
+    } catch (error) {
+        console.error('Error in getServerSideProps for attendance:', error);
+        
+        return {
+            props: {
+                user,
+                courses: [],
+                allCourses: [],
+                attendanceStats: {
+                    coursesWithAttendance: 0,
+                    totalRecords: 0,
+                    presentCount: 0,
+                    absentCount: 0,
+                    lateCount: 0
+                },
+                lastUpdated: new Date().toISOString()
+            }
+        };
+    }
 });
 
 export default AttendancePage;

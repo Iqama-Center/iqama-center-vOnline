@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
 import { useRouter } from 'next/router';
+import { safeSerialize, createSuccessResponse, createErrorResponse, REVALIDATION_TIMES } from '../lib/isrUtils';
 
 const PaymentConfirmationModal = ({ isOpen, onClose, payment, onConfirm }) => {
     if (!isOpen) return null;
@@ -345,8 +346,40 @@ const FinancePage = ({ user, initialPayments }) => {
     );
 };
 
+/**
+ * Server-side rendering for user-specific finance data
+ * Note: Using SSR only since this page requires authentication
+ */
 export const getServerSideProps = withAuth(async (context) => {
     try {
+        // Get payment statistics
+        const paymentStatsResult = await pool.query(`
+            SELECT 
+                COUNT(*) as total_payments,
+                COUNT(CASE WHEN status = 'pending_review' THEN 1 END) as pending_review_count,
+                COUNT(CASE WHEN status = 'due' THEN 1 END) as due_count,
+                COUNT(CASE WHEN status = 'late' THEN 1 END) as late_count,
+                COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_count,
+                SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) as total_paid_amount,
+                SUM(CASE WHEN status IN ('due', 'late') THEN amount ELSE 0 END) as total_outstanding
+            FROM payments
+        `).catch(() => ({ rows: [{}] })); // Graceful fallback if table doesn't exist
+
+        // Get monthly payment trends
+        const monthlyTrendsResult = await pool.query(`
+            SELECT 
+                DATE_TRUNC('month', due_date) as month,
+                COUNT(*) as payment_count,
+                SUM(amount) as total_amount,
+                COUNT(CASE WHEN status = 'paid' THEN 1 END) as paid_count
+            FROM payments
+            WHERE due_date >= CURRENT_DATE - INTERVAL '12 months'
+            GROUP BY DATE_TRUNC('month', due_date)
+            ORDER BY month DESC
+            LIMIT 12
+        `).catch(() => ({ rows: [] })); // Graceful fallback
+
+        // Get detailed payment data for finance users
         const paymentsResult = await pool.query(`
             SELECT p.*, u.full_name, c.name as course_name
             FROM payments p
@@ -356,18 +389,44 @@ export const getServerSideProps = withAuth(async (context) => {
             ORDER BY p.due_date ASC
         `);
 
+        const paymentStats = paymentStatsResult.rows[0] || {};
+        const monthlyTrends = monthlyTrendsResult.rows || [];
+
         return {
             props: {
                 user: JSON.parse(JSON.stringify(context.user)),
-                initialPayments: JSON.parse(JSON.stringify(paymentsResult.rows))
+                initialPayments: JSON.parse(JSON.stringify(paymentsResult.rows)),
+                paymentStats: {
+                    totalPayments: parseInt(paymentStats.total_payments || 0),
+                    pendingReviewCount: parseInt(paymentStats.pending_review_count || 0),
+                    dueCount: parseInt(paymentStats.due_count || 0),
+                    lateCount: parseInt(paymentStats.late_count || 0),
+                    paidCount: parseInt(paymentStats.paid_count || 0),
+                    totalPaidAmount: parseFloat(paymentStats.total_paid_amount || 0),
+                    totalOutstanding: parseFloat(paymentStats.total_outstanding || 0)
+                },
+                monthlyTrends: JSON.parse(JSON.stringify(monthlyTrends)),
+                lastUpdated: new Date().toISOString()
             }
         };
     } catch (error) {
         console.error('Finance page error:', error);
+        
         return {
             props: {
                 user: JSON.parse(JSON.stringify(context.user)),
-                initialPayments: []
+                initialPayments: [],
+                paymentStats: {
+                    totalPayments: 0,
+                    pendingReviewCount: 0,
+                    dueCount: 0,
+                    lateCount: 0,
+                    paidCount: 0,
+                    totalPaidAmount: 0,
+                    totalOutstanding: 0
+                },
+                monthlyTrends: [],
+                lastUpdated: new Date().toISOString()
             }
         };
     }

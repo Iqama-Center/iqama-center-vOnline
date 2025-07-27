@@ -317,10 +317,10 @@ export async function getStaticProps() {
             // Public statistics
             pool.query(`
                 SELECT 
-                    (SELECT COUNT(*) FROM courses WHERE status IN ('active', 'published')) as total_courses,
+                    (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_courses,
                     (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND account_status = 'active') as total_teachers,
-                    (SELECT COUNT(*) FROM courses WHERE status = 'active') as active_courses
+                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL) AND account_status = 'active') as total_teachers,
+                    (SELECT COUNT(*) FROM courses WHERE is_published = true AND is_launched = true) as active_courses
             `),
             
             // Recent courses
@@ -426,31 +426,7 @@ export async function getStaticProps() {
     }
 }
 
-/**
- * Server-side rendering for user-specific data
- * This runs on every request to provide personalized content
- */
-export const getServerSideProps = withAuth(async (context) => {
-    try {
-        // Get static props first
-        const staticProps = await getStaticProps();
-        
-        // Add user-specific data here if needed
-        // For example: user notifications, personal dashboard items, etc.
-        
-        return {
-            props: {
-                ...staticProps.props,
-                // User data is automatically added by withAuth
-            }
-        };
-    } catch (error) {
-        console.error('Error in getServerSideProps for dashboard:', error);
-        
-        // Fallback to static props only
-        const staticProps = await getStaticProps();
-        return staticProps;
-    }
-});
+// Note: This page uses ISR only (getStaticProps) for public access
+// For authenticated features, use dashboard.js instead
 
 export default DashboardISR;

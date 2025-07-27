@@ -68,9 +68,9 @@ export async function getStaticProps() {
         const result = await pool.query(`
             WITH stats AS (
                 SELECT 
-                    (SELECT COUNT(*) FROM courses WHERE status IN ('active', 'published')) as total_courses,
+                    (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_courses,
                     (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND account_status = 'active') as total_teachers,
+                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL) AND account_status = 'active') as total_teachers,
                     (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_courses
             ),
             featured AS (

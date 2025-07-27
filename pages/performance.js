@@ -87,10 +87,12 @@ const PerformancePage = ({ user, performance }) => {
 };
 
 /**
- * Static Site Generation with ISR for Performance Page
- * Generates public performance statistics and benchmarks
+ * Server-side rendering for user-specific performance data
+ * Note: Using SSR only since this page requires authentication
  */
-export async function getStaticProps() {
+export const getServerSideProps = withAuth(async (context) => {
+    const { user } = context;
+    
     try {
         // Get public performance statistics and benchmarks
         const publicStatsResult = await pool.query(`
@@ -120,50 +122,34 @@ export async function getStaticProps() {
             LIMIT 10
         `);
 
-        const publicStats = publicStatsResult.rows[0] || {};
-        const courseAverages = courseAvgResult.rows || [];
+        // Get public performance benchmarks directly in SSR
+        const benchmarksResult = await pool.query(`
+            SELECT 
+                AVG(CASE WHEN e.status = 'completed' THEN 100 ELSE 0 END) as avg_completion_rate,
+                COUNT(DISTINCT c.id) as total_courses,
+                COUNT(DISTINCT e.user_id) as total_participants,
+                AVG(CASE WHEN e.status = 'completed' THEN 
+                    EXTRACT(EPOCH FROM (e.updated_at - e.created_at)) / 86400 
+                    ELSE NULL END) as avg_completion_days
+            FROM courses c
+            LEFT JOIN enrollments e ON c.id = e.course_id
+            WHERE c.status IN ('active', 'published')
+            AND c.created_at >= CURRENT_DATE - INTERVAL '12 months'
+        `);
 
-        return {
-            props: {
-                publicPerformanceStats: JSON.parse(JSON.stringify(publicStats)),
-                courseAverages: JSON.parse(JSON.stringify(courseAverages)),
-                lastUpdated: new Date().toISOString(),
-                metadata: {
-                    cacheStrategy: 'ISR',
-                    generatedAt: new Date().toISOString()
-                }
-            },
-            // Revalidate every 10 minutes for performance data
-            revalidate: 600
-        };
-    } catch (error) {
-        console.error('Error in getStaticProps for performance:', error);
-        
-        return {
-            props: {
-                publicPerformanceStats: {},
-                courseAverages: [],
-                lastUpdated: new Date().toISOString(),
-                metadata: {
-                    hasError: true,
-                    errorMessage: error.message,
-                    generatedAt: new Date().toISOString()
-                }
-            },
-            revalidate: 60
-        };
-    }
-}
-
-/**
- * Server-side rendering for user-specific performance data
- */
-export const getServerSideProps = withAuth(async (context) => {
-    const { user } = context;
-    
-    try {
-        // Get static props first
-        const staticProps = await getStaticProps();
+        // Get performance trends
+        const trendsResult = await pool.query(`
+            SELECT 
+                DATE_TRUNC('month', e.created_at) as month,
+                COUNT(*) as enrollments,
+                COUNT(CASE WHEN e.status = 'completed' THEN 1 END) as completions,
+                ROUND(COUNT(CASE WHEN e.status = 'completed' THEN 1 END) * 100.0 / COUNT(*), 2) as completion_rate
+            FROM enrollments e
+            WHERE e.created_at >= CURRENT_DATE - INTERVAL '12 months'
+            GROUP BY DATE_TRUNC('month', e.created_at)
+            ORDER BY month DESC
+            LIMIT 12
+        `);
     // استعلام لجلب متوسط الدرجات وعدد المهام المصححة
     const statsQuery = `
         SELECT 
@@ -197,28 +183,49 @@ export const getServerSideProps = withAuth(async (context) => {
         timeline: timelineResult.rows.reverse(),
         course_performance: coursePerfResult.rows,
     };
+    const publicStats = publicStatsResult.rows[0] || {};
+    const courseAverages = courseAvgResult.rows || [];
+    const benchmarks = benchmarksResult.rows[0] || {};
+    const trends = trendsResult.rows || [];
+
     return {
         props: {
-            ...staticProps.props,
             user,
+            publicPerformanceStats: JSON.parse(JSON.stringify(publicStats)),
+            courseAverages: JSON.parse(JSON.stringify(courseAverages)),
+            benchmarks: {
+                avgCompletionRate: parseFloat(benchmarks.avg_completion_rate || 0),
+                totalCourses: parseInt(benchmarks.total_courses || 0),
+                totalParticipants: parseInt(benchmarks.total_participants || 0),
+                avgCompletionDays: parseFloat(benchmarks.avg_completion_days || 0)
+            },
+            trends: JSON.parse(JSON.stringify(trends)),
             performance: JSON.parse(JSON.stringify(performance)),
+            lastUpdated: new Date().toISOString()
         },
     };
     } catch (error) {
         console.error('Performance page error:', error);
         
-        // Fallback to static props with empty performance data
-        const staticProps = await getStaticProps();
         return {
             props: {
-                ...staticProps.props,
                 user,
+                publicPerformanceStats: {},
+                courseAverages: [],
+                benchmarks: {
+                    avgCompletionRate: 0,
+                    totalCourses: 0,
+                    totalParticipants: 0,
+                    avgCompletionDays: 0
+                },
+                trends: [],
                 performance: {
                     average_grade: 0,
                     graded_tasks: 0,
                     timeline: [],
                     course_performance: []
-                }
+                },
+                lastUpdated: new Date().toISOString()
             }
         };
     }

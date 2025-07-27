@@ -10,16 +10,16 @@ import { getFilteredCourses } from '../lib/queryOptimizer';
  * Uses ISR for optimal performance while maintaining personalization
  */
 const ImprovedCoursesPage = ({ 
-    user, 
-    publicCourses, 
-    courseStats, 
+    user = null, 
+    publicCourses = [], 
+    courseStats = {}, 
     lastUpdated 
 }) => {
     // Client-side state for user-specific data
     const [enrolledCourses, setEnrolledCourses] = useState([]);
     const [availableCourses, setAvailableCourses] = useState(publicCourses || []);
     const [message, setMessage] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!!user);
     const [error, setError] = useState(null);
 
     // Fetch user-specific data on client-side
@@ -222,13 +222,94 @@ const ImprovedCoursesPage = ({
         return statusMap[status] || status;
     };
 
+    // Handle case where user is null (during static generation or public access)
     if (!user) {
         return (
             <Layout user={null}>
-                <div className="loading-container">
-                    <div className="loading-spinner"></div>
-                    <p>جاري التحميل...</p>
+                <div className="courses-page">
+                    <header className="page-header">
+                        <h1>الدورات المتاحة</h1>
+                        <p>تصفح الدورات المتاحة. سجل دخولك للتقديم.</p>
+                        
+                        {courseStats && (
+                            <div className="stats-summary">
+                                <div className="stat-item">
+                                    <span className="stat-number">{courseStats.totalCourses || 0}</span>
+                                    <span className="stat-label">دورة متاحة</span>
+                                </div>
+                                <div className="stat-item">
+                                    <span className="stat-number">{courseStats.totalStudents || 0}</span>
+                                    <span className="stat-label">طالب مسجل</span>
+                                </div>
+                                <div className="stat-item">
+                                    <span className="stat-number">{courseStats.activeCourses || 0}</span>
+                                    <span className="stat-label">دورة نشطة</span>
+                                </div>
+                            </div>
+                        )}
+                    </header>
+
+                    {/* Public Courses Section */}
+                    <section className="available-courses-section">
+                        <h2>
+                            <i className="fas fa-graduation-cap"></i> 
+                            الدورات المتاحة ({publicCourses.length})
+                        </h2>
+                        
+                        {publicCourses.length > 0 ? (
+                            <div className="courses-grid">
+                                {publicCourses.map(course => (
+                                    <div key={course.id} className="course-card">
+                                        <div className="course-header">
+                                            <h3>{course.name}</h3>
+                                            <span className={`status-badge ${course.status}`}>
+                                                {course.status === 'active' ? 'متاحة للتسجيل' : 'منشورة'}
+                                            </span>
+                                        </div>
+                                        
+                                        <div className="course-content">
+                                            <p className="course-description">{course.description}</p>
+                                            
+                                            {course.details && typeof course.details === 'object' && (
+                                                <CourseDetails details={course.details} />
+                                            )}
+                                        </div>
+                                        
+                                        <div className="course-footer">
+                                            <div className="course-meta">
+                                                <small>تم الإنشاء: {new Date(course.created_at).toLocaleDateString('ar-EG')}</small>
+                                                {course.student_count > 0 && (
+                                                    <small>عدد المسجلين: {course.student_count}</small>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="course-actions">
+                                                <button 
+                                                    onClick={() => window.location.href = '/login'}
+                                                    className="btn btn-primary"
+                                                >
+                                                    سجل دخولك للتقديم
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="no-courses">
+                                <i className="fas fa-graduation-cap"></i>
+                                <h3>لا توجد دورات متاحة حالياً</h3>
+                                <p>تابعنا للحصول على آخر التحديثات حول الدورات الجديدة</p>
+                            </div>
+                        )}
+                    </section>
+
+                    <footer className="page-footer">
+                        <small>آخر تحديث: {new Date(lastUpdated).toLocaleString('ar-EG')}</small>
+                    </footer>
                 </div>
+
+                <CoursesPageStyles />
             </Layout>
         );
     }
@@ -796,7 +877,7 @@ const CoursesPageStyles = () => (
  */
 export async function getStaticProps() {
     try {
-        // Fetch public course data that can be cached
+        // Fetch public course data that can be cached (with safe column handling)
         const coursesResult = await pool.query(`
             SELECT 
                 c.id, 
@@ -805,15 +886,34 @@ export async function getStaticProps() {
                 c.details, 
                 c.status, 
                 c.created_at,
-                c.is_published,
+                COALESCE(c.is_published, true) as is_published,
                 COUNT(e.id) as student_count
             FROM courses c
             LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
-            WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true))
+            WHERE c.status IN ('active', 'published')
             GROUP BY c.id, c.name, c.description, c.details, c.status, c.created_at, c.is_published
             ORDER BY c.created_at DESC
             LIMIT 50
-        `);
+        `).catch(async (error) => {
+            console.log('Primary query failed, trying fallback:', error.message);
+            // Fallback query without potentially missing columns
+            return await pool.query(`
+                SELECT 
+                    c.id, 
+                    c.name, 
+                    c.description, 
+                    c.details, 
+                    c.status, 
+                    c.created_at,
+                    COUNT(e.id) as student_count
+                FROM courses c
+                LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
+                WHERE c.status IN ('active', 'published')
+                GROUP BY c.id, c.name, c.description, c.details, c.status, c.created_at
+                ORDER BY c.created_at DESC
+                LIMIT 50
+            `);
+        });
 
         // Fetch course statistics
         const statsQueries = await Promise.allSettled([
@@ -859,16 +959,7 @@ export async function getStaticProps() {
  * Server-side authentication wrapper
  * This ensures the user is authenticated before accessing the page
  */
-export const getServerSideProps = withAuth(async (context) => {
-    // Get static props data
-    const staticProps = await getStaticProps();
-    
-    return {
-        props: {
-            user: context.user,
-            ...staticProps.props
-        }
-    };
-});
+// Note: This page uses ISR only (getStaticProps) for public access
+// For authenticated features, use courses.js instead
 
 export default ImprovedCoursesPage;

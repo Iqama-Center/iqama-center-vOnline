@@ -453,12 +453,14 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
 };
 
 /**
- * Static Site Generation with ISR for Courses Page
- * Generates public course data with incremental regeneration
+ * Server-side rendering for user-specific courses data
+ * Note: Using SSR only since this page requires authentication
  */
-export async function getStaticProps() {
+export const getServerSideProps = withAuth(async (context) => {
+    const { user } = context;
+    
     try {
-        // Get public courses data that doesn't require authentication
+        // Get public courses data
         const coursesResult = await getFilteredCourses(
             { status: 'active', limit: 100 }, 
             null // No user ID for static generation
@@ -486,55 +488,6 @@ export async function getStaticProps() {
             LIMIT 10
         `);
 
-        const stats = statsResult.rows[0] || {};
-        const categories = categoriesResult.rows || [];
-
-        return {
-            props: {
-                courses: JSON.parse(JSON.stringify(coursesResult)),
-                stats: JSON.parse(JSON.stringify(stats)),
-                categories: JSON.parse(JSON.stringify(categories)),
-                lastUpdated: new Date().toISOString(),
-                metadata: {
-                    totalFetched: coursesResult.length,
-                    cacheStrategy: 'ISR',
-                    generatedAt: new Date().toISOString()
-                }
-            },
-            // Revalidate every 5 minutes for course data
-            revalidate: 300
-        };
-    } catch (error) {
-        console.error('Error in getStaticProps for courses:', error);
-        
-        return {
-            props: {
-                courses: [],
-                stats: { total_courses: 0, active_courses: 0, total_students: 0 },
-                categories: [],
-                lastUpdated: new Date().toISOString(),
-                metadata: {
-                    hasError: true,
-                    errorMessage: error.message,
-                    generatedAt: new Date().toISOString()
-                }
-            },
-            revalidate: 60
-        };
-    }
-}
-
-/**
- * Server-side rendering for user-specific data
- * Combines static props with user authentication
- */
-export const getServerSideProps = withAuth(async (context) => {
-    const { user } = context;
-    
-    try {
-        // Get static props first
-        const staticProps = await getStaticProps();
-        
         // Get user-specific enrolled courses
         const enrolledCoursesResult = await pool.query(`
             SELECT c.id, c.name, c.description, c.details, c.status, c.created_at,
@@ -548,23 +501,30 @@ export const getServerSideProps = withAuth(async (context) => {
             LIMIT 20
         `, [user.id]);
 
+        const stats = statsResult.rows[0] || {};
+        const categories = categoriesResult.rows || [];
+
         return {
             props: {
-                ...staticProps.props,
                 user: JSON.parse(JSON.stringify(user)),
-                enrolledCourses: JSON.parse(JSON.stringify(enrolledCoursesResult.rows))
+                courses: JSON.parse(JSON.stringify(coursesResult)),
+                stats: JSON.parse(JSON.stringify(stats)),
+                categories: JSON.parse(JSON.stringify(categories)),
+                enrolledCourses: JSON.parse(JSON.stringify(enrolledCoursesResult.rows)),
+                lastUpdated: new Date().toISOString()
             }
         };
     } catch (err) {
         console.error('Courses page error:', err);
         
-        // Fallback to static props with empty user data
-        const staticProps = await getStaticProps();
         return {
             props: {
-                ...staticProps.props,
                 user: JSON.parse(JSON.stringify(user)),
-                enrolledCourses: []
+                courses: [],
+                stats: { total_courses: 0, active_courses: 0, total_students: 0 },
+                categories: [],
+                enrolledCourses: [],
+                lastUpdated: new Date().toISOString()
             }
         };
     }

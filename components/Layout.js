@@ -34,7 +34,7 @@ const Sidebar = ({ user, currentPath, isMobile, sidebarExpanded, setSidebarExpan
             {!isMobile && <div className="sidebar-logo">إقامة الكتاب</div>}
             <ul className="sidebar-nav">
                 {navLinks.map((link, index) => {
-                    if (link.roles && !link.roles.includes(user.role)) {
+                    if (link.roles && (!user || !link.roles.includes(user.role))) {
                         return null;
                     }
                     if (link.title) {
@@ -190,7 +190,7 @@ const Header = ({ user, onLogout, onToggleSidebar, isMobile }) => {
     );
 };
 
-const Layout = ({ user, children }) => {
+const Layout = ({ user = null, children }) => {
     const router = useRouter();
     const [sidebarExpanded, setSidebarExpanded] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -216,6 +216,20 @@ const Layout = ({ user, children }) => {
 
     const isParentView = user?.is_view_token;
     const isPaymentLocked = user?.details?.is_payment_locked;
+
+    // If no user, render a simple layout without sidebar/header
+    if (!user) {
+        return (
+            <>
+                <Head>
+                    <title>مركز إقامة الكتاب</title>
+                </Head>
+                <div style={{ minHeight: '100vh', backgroundColor: '#f4f7f9' }}>
+                    {children}
+                </div>
+            </>
+        );
+    }
 
     return (
         <>

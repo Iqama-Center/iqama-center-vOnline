@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import PublicLayout from '../components/PublicLayout';
 import pool from '../lib/db';
 
@@ -97,13 +98,13 @@ const PublicCoursesPage = ({ courses, stats, lastUpdated }) => {
                                     </div>
                                     
                                     <div className="course-actions">
-                                        <a 
+                                        <Link 
                                             href="/login" 
                                             className="btn btn-primary"
                                             title="سجل دخولك للتقديم"
                                         >
                                             سجل للتقديم
-                                        </a>
+                                        </Link>
                                         <button 
                                             className="btn btn-secondary"
                                             onClick={() => {
@@ -417,9 +418,9 @@ export async function getStaticProps() {
             // Comprehensive statistics query
             pool.query(`
                 SELECT 
-                    (SELECT COUNT(*) FROM courses WHERE status IN ('active', 'published') AND is_published = true) as total_courses,
+                    (SELECT COUNT(*) FROM courses WHERE is_published = true AND is_published = true) as total_courses,
                     (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM courses WHERE status = 'active') as active_courses,
+                    (SELECT COUNT(*) FROM courses WHERE is_published = true AND is_launched = true) as active_courses,
                     (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_enrollments,
                     (SELECT AVG(course_fee) FROM courses WHERE status = 'published' AND is_published = true AND course_fee > 0) as avg_fee
             `),
@@ -535,99 +536,6 @@ export async function getStaticProps() {
             // This balances data freshness with performance
             revalidate: 600
         };
-
-    } catch (error) {
-        console.error('Critical error in getStaticProps for public courses:', error);
-        
-        // Comprehensive fallback response with detailed error information
-        return {
-            props: {
-                courses: [],
-                stats: {
-                    totalCourses: 0,
-                    totalStudents: 0,
-                    activeCourses: 0,
-                    completedEnrollments: 0,
-                    avgCourseFee: 0
-                },
-                categories: [],
-                lastUpdated: new Date().toISOString(),
-                metadata: {
-                    totalFetched: 0,
-                    queriesExecuted: 0,
-                    hasErrors: true,
-                    errorMessage: error.message,
-                    errorStack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-                    cacheStrategy: 'ISR',
-                    revalidationTime: 120,
-                    generatedAt: new Date().toISOString()
-                }
-            },
-            // Retry more frequently when there's an error
-            revalidate: 120
-        };
-    }
-        if (queryResults[0].success) {
-            courses = queryResults[0].data.rows.map(course => ({
-                ...course,
-                // Safely parse JSON details
-                details: typeof course.details === 'object' ? course.details : {},
-                // Ensure numeric fields are properly typed
-                student_count: parseInt(course.student_count || 0),
-                course_fee: parseFloat(course.course_fee || 0),
-                duration_days: parseInt(course.duration_days || 0),
-                max_participants: parseInt(course.max_participants || 0),
-                // Calculate availability
-                is_available: (parseInt(course.student_count || 0) < parseInt(course.max_participants || 0)),
-                // Format dates safely
-                created_at: course.created_at ? new Date(course.created_at).toISOString() : null,
-                updated_at: course.updated_at ? new Date(course.updated_at).toISOString() : null,
-                start_date: course.start_date ? new Date(course.start_date).toISOString() : null,
-                end_date: course.end_date ? new Date(course.end_date).toISOString() : null
-            }));
-        }
-
-        // Process statistics with fallback values
-        let stats = {
-            totalCourses: 0,
-            totalStudents: 0,
-            activeCourses: 0,
-            completedEnrollments: 0,
-            avgFee: 0
-        };
-        
-        if (queryResults[1].success && queryResults[1].data.rows[0]) {
-            const statsRow = queryResults[1].data.rows[0];
-            stats = {
-                totalCourses: parseInt(statsRow.total_courses || 0),
-                totalStudents: parseInt(statsRow.total_students || 0),
-                activeCourses: parseInt(statsRow.active_courses || 0),
-                completedEnrollments: parseInt(statsRow.completed_enrollments || 0),
-                avgFee: parseFloat(statsRow.avg_fee || 0)
-            };
-        }
-
-        // Process categories
-        let categories = [];
-        if (queryResults[2].success) {
-            categories = queryResults[2].data.rows.map(cat => ({
-                name: cat.category || 'عام',
-                count: parseInt(cat.course_count || 0)
-            }));
-        }
-
-        // Return success response with enhanced data
-        return createSuccessResponse({
-            courses,
-            stats,
-            categories,
-            metadata: {
-                totalPages: Math.ceil(courses.length / 12),
-                hasMoreCourses: courses.length >= 100,
-                categoriesCount: categories.length,
-                dataFreshness: 'live'
-            }
-        }, REVALIDATION_TIMES.STANDARD);
 
     } catch (error) {
         console.error('Critical error in getStaticProps for public courses:', error);

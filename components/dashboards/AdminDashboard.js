@@ -16,9 +16,14 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                         <i className="fas fa-users"></i>
                     </div>
                     <div className="stat-content">
-                        <h3>إجمالي المستخدمين</h3>
+                        <h3>إجمالي المستخدمين النشطين</h3>
                         <p className="stat-number">{stats ? stats.total_users : '...'}</p>
-                        <small><i className="fas fa-arrow-left"></i> انقر للعرض</small>
+                        <small>
+                            <div>طلاب نشطين: {stats ? (stats.unique_active_students || stats.total_students) : '...'}</div>
+                            <div>معلمين: {stats ? stats.total_teachers : '...'}</div>
+                            <div>مديرين: {stats ? stats.total_admins : '...'}</div>
+                            <i className="fas fa-arrow-left"></i> انقر للعرض
+                        </small>
                     </div>
                 </div>
                 <div className="stat-card clickable" onClick={() => window.location.href = '/admin/courses/manage'}>
@@ -28,7 +33,27 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     <div className="stat-content">
                         <h3>إجمالي الدورات</h3>
                         <p className="stat-number">{stats ? stats.total_courses : '...'}</p>
-                        <small><i className="fas fa-arrow-left"></i> انقر للعرض</small>
+                        <small>
+                            <div>نشطة: {stats ? stats.active_courses : '...'}</div>
+                            <div>منشورة: {stats ? stats.published_courses : '...'}</div>
+                            <div>مسودات: {stats ? stats.draft_courses : '...'}</div>
+                            <i className="fas fa-arrow-left"></i> انقر للعرض
+                        </small>
+                    </div>
+                </div>
+                <div className="stat-card clickable" onClick={() => window.location.href = '/admin/enrollments'}>
+                    <div className="stat-icon">
+                        <i className="fas fa-user-graduate"></i>
+                    </div>
+                    <div className="stat-content">
+                        <h3>التسجيلات النشطة</h3>
+                        <p className="stat-number">{stats ? stats.active_enrollments : '...'}</p>
+                        <small>
+                            <div>مكتملة: {stats ? stats.completed_enrollments : '...'}</div>
+                            <div>معلقة الموافقة: {stats ? stats.pending_enrollments : '...'}</div>
+                            <div>معلقة الدفع: {stats ? stats.payment_pending_enrollments : '...'}</div>
+                            <i className="fas fa-arrow-left"></i> انقر للعرض
+                        </small>
                     </div>
                 </div>
                 <div className="stat-card clickable" onClick={() => window.location.href = '/finance'}>
@@ -36,9 +61,12 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                         <i className="fas fa-money-bill-wave"></i>
                     </div>
                     <div className="stat-content">
-                        <h3>دفعات مستحقة</h3>
+                        <h3>المدفوعات المستحقة</h3>
                         <p className="stat-number">{stats ? stats.pending_payments : '...'}</p>
-                        <small><i className="fas fa-arrow-left"></i> انقر للعرض</small>
+                        <small>
+                            <div>مكتملة: {stats ? stats.completed_payments : '...'}</div>
+                            <i className="fas fa-arrow-left"></i> انقر للعرض
+                        </small>
                     </div>
                 </div>
                 <div className="stat-card clickable" onClick={() => window.location.href = '/admin/requests'}>
@@ -46,9 +74,64 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                         <i className="fas fa-user-edit"></i>
                     </div>
                     <div className="stat-content">
-                        <h3>طلبات التعديل</h3>
+                        <h3>طلبات التعديل المعلقة</h3>
                         <p className="stat-number">{stats ? stats.pending_requests : '...'}</p>
                         <small><i className="fas fa-arrow-left"></i> انقر للعرض</small>
+                    </div>
+                </div>
+            </div>
+
+            {/* إحصائيات تفصيلية شاملة */}
+            <div className="detailed-stats">
+                <div className="stats-section">
+                    <h3><i className="fas fa-chart-bar"></i> تفصيل المستخدمين حسب الدور</h3>
+                    <div className="stats-row">
+                        <div className="stat-item">
+                            <span className="stat-label">الطلاب (إجمالي):</span>
+                            <span className="stat-value">{stats ? stats.total_students : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">الطلاب النشطين:</span>
+                            <span className="stat-value">{stats ? stats.unique_active_students : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">المعلمين:</span>
+                            <span className="stat-value">{stats ? stats.total_teachers : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">أولياء الأمور:</span>
+                            <span className="stat-value">{stats ? stats.total_parents : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">العمال:</span>
+                            <span className="stat-value">{stats ? stats.total_workers : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">الماليين:</span>
+                            <span className="stat-value">{stats ? stats.total_finance : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">الرؤساء:</span>
+                            <span className="stat-value">{stats ? stats.total_heads : '...'}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div className="stats-section">
+                    <h3><i className="fas fa-calendar-alt"></i> إحصائيات هذا الشهر</h3>
+                    <div className="stats-row">
+                        <div className="stat-item">
+                            <span className="stat-label">مستخدمين جدد:</span>
+                            <span className="stat-value">{stats ? stats.new_users_this_month : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">دورات جديدة:</span>
+                            <span className="stat-value">{stats ? stats.new_courses_this_month : '...'}</span>
+                        </div>
+                        <div className="stat-item">
+                            <span className="stat-label">تسجيلات جديدة:</span>
+                            <span className="stat-value">{stats ? stats.new_enrollments_this_month : '...'}</span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -175,10 +258,59 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                 }
                 .stat-card small {
                     color: #666;
-                    font-size: 0.8rem;
+                    font-size: 0.75rem;
+                    line-height: 1.4;
+                }
+                
+                .detailed-stats {
+                    margin: 30px 0;
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                }
+                
+                .stats-section {
+                    background: white;
+                    padding: 20px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+                }
+                
+                .stats-section h3 {
+                    margin: 0 0 15px 0;
+                    color: var(--primary-color);
+                    font-size: 1.1rem;
                     display: flex;
                     align-items: center;
-                    gap: 5px;
+                    gap: 10px;
+                }
+                
+                .stats-row {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 15px;
+                }
+                
+                .stat-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    background: #f8f9fa;
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    min-width: 150px;
+                    flex: 1;
+                }
+                
+                .stat-label {
+                    color: #666;
+                    font-size: 0.9rem;
+                }
+                
+                .stat-value {
+                    font-weight: bold;
+                    color: var(--primary-color);
+                    font-size: 1.1rem;
                 }
                 
                 .dashboard-sections {
