@@ -1,7 +1,70 @@
 import React from 'react';
 import Link from 'next/link';
 
+// Helper functions moved outside component to avoid re-creation on each render
+function getRoleText(role) {
+    const roles = {
+        'admin': 'مدير',
+        'teacher': 'معلم', 
+        'student': 'طالب',
+        'parent': 'ولي أمر',
+        'head': 'رئيس قسم',
+        'finance': 'مالية',
+        'worker': 'عامل'
+    };
+    return roles[role] || role;
+}
+
+function getStatusText(status) {
+    const statuses = {
+        'active': 'نشط',
+        'pending': 'في الانتظار',
+        'completed': 'مكتمل',
+        'waiting_start': 'في انتظار البدء'
+    };
+    return statuses[status] || status;
+}
+
 const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingRequests }) => {
+    // Debug logging to check what data is being received
+    React.useEffect(() => {
+        console.log('=== AdminDashboard Debug Info ===');
+        console.log('Stats object:', stats);
+        console.log('Total users from stats:', stats?.total_users);
+        console.log('Total courses from stats:', stats?.total_courses);
+        console.log('Active enrollments from stats:', stats?.active_enrollments);
+        console.log('Recent users count:', recentUsers?.length);
+        console.log('Recent courses count:', recentCourses?.length);
+        console.log('================================');
+    }, [stats, recentUsers, recentCourses]);
+
+    // Handle navigation with proper error handling
+    const handleNavigation = (url) => {
+        try {
+            window.location.href = url;
+        } catch (error) {
+            console.error('Navigation error:', error);
+        }
+    };
+
+    // Validate and format statistics with debug info
+    const getStatValue = (value, label) => {
+        if (value === null || value === undefined) {
+            console.warn(`${label} is null/undefined`);
+            return '0';
+        }
+        if (typeof value === 'string') {
+            console.warn(`${label} is a string: "${value}"`);
+            // Try to convert string to number
+            const parsed = parseInt(value, 10);
+            return isNaN(parsed) ? '0' : parsed.toString();
+        }
+        if (typeof value === 'number') {
+            return value.toString();
+        }
+        console.warn(`${label} has unexpected type:`, typeof value, value);
+        return '0';
+    };
 
     return (
         <div>
@@ -11,71 +74,73 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
             
             {/* إحصائيات سريعة */}
             <div className="stats-grid">
-                <div className="stat-card clickable" onClick={() => window.location.href = '/admin/users'}>
+                <div className="stat-card clickable" onClick={() => handleNavigation('/admin/users')}>
                     <div className="stat-icon">
                         <i className="fas fa-users"></i>
                     </div>
                     <div className="stat-content">
-                        <h3>إجمالي المستخدمين النشطين</h3>
-                        <p className="stat-number">{stats ? stats.total_users : '...'}</p>
+                        <h3>إجمالي المستخدمين</h3>
+                        <p className="stat-number">{getStatValue(stats?.total_users, 'total_users')}</p>
                         <small>
-                            <div>طلاب نشطين: {stats ? (stats.unique_active_students || stats.total_students) : '...'}</div>
-                            <div>معلمين: {stats ? stats.total_teachers : '...'}</div>
-                            <div>مديرين: {stats ? stats.total_admins : '...'}</div>
+                            <div>طلاب نشطين: {getStatValue(stats?.unique_active_students || stats?.total_students || stats?.activeStudents, 'active_students')}</div>
+                            <div>معلمين: {getStatValue(stats?.total_teachers || stats?.teacherCount, 'total_teachers')}</div>
+                            <div>مديرين: {getStatValue(stats?.total_admins || stats?.adminCount, 'total_admins')}</div>
                             <i className="fas fa-arrow-left"></i> انقر للعرض
                         </small>
                     </div>
                 </div>
-                <div className="stat-card clickable" onClick={() => window.location.href = '/admin/courses/manage'}>
+                <div className="stat-card clickable" onClick={() => handleNavigation('/admin/courses/manage')}>
                     <div className="stat-icon">
                         <i className="fas fa-graduation-cap"></i>
                     </div>
                     <div className="stat-content">
                         <h3>إجمالي الدورات</h3>
-                        <p className="stat-number">{stats ? stats.total_courses : '...'}</p>
+                        <p className="stat-number">{getStatValue(stats?.total_courses, 'total_courses')}</p>
                         <small>
-                            <div>نشطة: {stats ? stats.active_courses : '...'}</div>
-                            <div>منشورة: {stats ? stats.published_courses : '...'}</div>
-                            <div>مسودات: {stats ? stats.draft_courses : '...'}</div>
+                            <div>نشطة: {getStatValue(stats?.active_courses || stats?.activeCourses, 'active_courses')}</div>
+                            <div>منشورة: {getStatValue(stats?.published_courses || stats?.publishedCourses, 'published_courses')}</div>
+                            <div>مسودات: {getStatValue(stats?.draft_courses || stats?.draftCourses, 'draft_courses')}</div>
                             <i className="fas fa-arrow-left"></i> انقر للعرض
                         </small>
                     </div>
                 </div>
-                <div className="stat-card clickable" onClick={() => window.location.href = '/admin/enrollments'}>
+                <div className="stat-card clickable" onClick={() => handleNavigation('/admin/enrollments')}>
                     <div className="stat-icon">
                         <i className="fas fa-user-graduate"></i>
                     </div>
                     <div className="stat-content">
                         <h3>التسجيلات النشطة</h3>
-                        <p className="stat-number">{stats ? stats.active_enrollments : '...'}</p>
+                        <p className="stat-number">{getStatValue(stats?.active_enrollments, 'active_enrollments')}</p>
                         <small>
-                            <div>مكتملة: {stats ? stats.completed_enrollments : '...'}</div>
-                            <div>معلقة الموافقة: {stats ? stats.pending_enrollments : '...'}</div>
-                            <div>معلقة الدفع: {stats ? stats.payment_pending_enrollments : '...'}</div>
+                            <div>مكتملة: {getStatValue(stats?.completed_enrollments, 'completed_enrollments')}</div>
+                            <div>معلقة الموافقة: {getStatValue(stats?.pending_enrollments, 'pending_enrollments')}</div>
+                            <div>معلقة الدفع: {getStatValue(stats?.payment_pending_enrollments, 'payment_pending_enrollments')}</div>
                             <i className="fas fa-arrow-left"></i> انقر للعرض
                         </small>
                     </div>
                 </div>
-                <div className="stat-card clickable" onClick={() => window.location.href = '/finance'}>
+                <div className="stat-card clickable" onClick={() => handleNavigation('/finance')}>
                     <div className="stat-icon">
                         <i className="fas fa-money-bill-wave"></i>
                     </div>
                     <div className="stat-content">
                         <h3>المدفوعات المستحقة</h3>
-                        <p className="stat-number">{stats ? stats.pending_payments : '...'}</p>
+                        <p className="stat-number">{getStatValue(stats?.pending_payments, 'pending_payments')}</p>
                         <small>
-                            <div>مكتملة: {stats ? stats.completed_payments : '...'}</div>
+                            <div>مكتملة: {getStatValue(stats?.completed_payments, 'completed_payments')}</div>
+                            <div>إجمالي الإيرادات: {stats?.total_revenue || '0'} ر.س</div>
+                            <div>المبالغ المستحقة: {stats?.outstanding_amount || '0'} ر.س</div>
                             <i className="fas fa-arrow-left"></i> انقر للعرض
                         </small>
                     </div>
                 </div>
-                <div className="stat-card clickable" onClick={() => window.location.href = '/admin/requests'}>
+                <div className="stat-card clickable" onClick={() => handleNavigation('/admin/requests')}>
                     <div className="stat-icon">
                         <i className="fas fa-user-edit"></i>
                     </div>
                     <div className="stat-content">
                         <h3>طلبات التعديل المعلقة</h3>
-                        <p className="stat-number">{stats ? stats.pending_requests : '...'}</p>
+                        <p className="stat-number">{stats?.pending_requests || '0'}</p>
                         <small><i className="fas fa-arrow-left"></i> انقر للعرض</small>
                     </div>
                 </div>
@@ -88,31 +153,31 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     <div className="stats-row">
                         <div className="stat-item">
                             <span className="stat-label">الطلاب (إجمالي):</span>
-                            <span className="stat-value">{stats ? stats.total_students : '...'}</span>
+                            <span className="stat-value">{stats?.total_students || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">الطلاب النشطين:</span>
-                            <span className="stat-value">{stats ? stats.unique_active_students : '...'}</span>
+                            <span className="stat-value">{stats?.unique_active_students || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">المعلمين:</span>
-                            <span className="stat-value">{stats ? stats.total_teachers : '...'}</span>
+                            <span className="stat-value">{stats?.total_teachers || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">أولياء الأمور:</span>
-                            <span className="stat-value">{stats ? stats.total_parents : '...'}</span>
+                            <span className="stat-value">{stats?.total_parents || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">العمال:</span>
-                            <span className="stat-value">{stats ? stats.total_workers : '...'}</span>
+                            <span className="stat-value">{stats?.total_workers || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">الماليين:</span>
-                            <span className="stat-value">{stats ? stats.total_finance : '...'}</span>
+                            <span className="stat-value">{stats?.total_finance || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">الرؤساء:</span>
-                            <span className="stat-value">{stats ? stats.total_heads : '...'}</span>
+                            <span className="stat-value">{stats?.total_heads || '0'}</span>
                         </div>
                     </div>
                 </div>
@@ -122,15 +187,15 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     <div className="stats-row">
                         <div className="stat-item">
                             <span className="stat-label">مستخدمين جدد:</span>
-                            <span className="stat-value">{stats ? stats.new_users_this_month : '...'}</span>
+                            <span className="stat-value">{stats?.new_users_this_month || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">دورات جديدة:</span>
-                            <span className="stat-value">{stats ? stats.new_courses_this_month : '...'}</span>
+                            <span className="stat-value">{stats?.new_courses_this_month || '0'}</span>
                         </div>
                         <div className="stat-item">
                             <span className="stat-label">تسجيلات جديدة:</span>
-                            <span className="stat-value">{stats ? stats.new_enrollments_this_month : '...'}</span>
+                            <span className="stat-value">{stats?.new_enrollments_this_month || '0'}</span>
                         </div>
                     </div>
                 </div>
@@ -209,7 +274,6 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                 </div>
             </div>
 
-            {/* دوال مساعدة */}
             <style jsx>{`
                 .stats-grid {
                     display: grid;
@@ -439,6 +503,9 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     .dashboard-sections {
                         grid-template-columns: 1fr;
                     }
+                    .detailed-stats {
+                        grid-template-columns: 1fr;
+                    }
                     .stat-card {
                         flex-direction: column;
                         text-align: center;
@@ -449,33 +516,8 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     }
                 }
             `}</style>
-
         </div>
     );
-
-    // دوال مساعدة
-    function getRoleText(role) {
-        const roles = {
-            'admin': 'مدير',
-            'teacher': 'معلم',
-            'student': 'طالب',
-            'parent': 'ولي أمر',
-            'head': 'رئيس قسم',
-            'finance': 'مالية',
-            'worker': 'عامل'
-        };
-        return roles[role] || role;
-    }
-
-    function getStatusText(status) {
-        const statuses = {
-            'active': 'نشط',
-            'pending': 'في الانتظار',
-            'completed': 'مكتمل',
-            'waiting_start': 'في انتظار البدء'
-        };
-        return statuses[status] || status;
-    }
 };
 
 export default AdminDashboard;

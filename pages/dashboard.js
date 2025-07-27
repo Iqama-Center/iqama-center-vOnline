@@ -80,19 +80,84 @@ export const getServerSideProps = withAuth(async (context) => {
             LIMIT 10
         `);
 
-        // Fast fallback for development mode with role-specific data
+        // Get real data even in development mode to ensure accuracy
         if (process.env.NODE_ENV === 'development') {
-            console.log('🚀 Dashboard development mode: Using fast fallback data for', user.role);
+            console.log('🚀 Dashboard development mode: Using REAL database data for', user.role);
             
             let roleSpecificStats = {};
             
-            // Add role-specific stats for development
+            // Add role-specific stats for development - GET REAL DATA
             if (user.role === 'admin') {
+                // Get actual user count from database (ALL users, not just active)
+                const actualUserCount = await pool.query('SELECT COUNT(*) as count FROM users');
+                const actualCourseCount = await pool.query('SELECT COUNT(*) as count FROM courses');
+                const actualEnrollmentCount = await pool.query('SELECT COUNT(*) as count FROM enrollments WHERE status = \'active\'');
+                
+                // Get detailed user counts by role
+                const actualStudentCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = \'student\' AND (account_status = \'active\' OR account_status IS NULL)');
+                const actualTeacherCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = \'teacher\' AND (account_status = \'active\' OR account_status IS NULL)');
+                const actualAdminCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = \'admin\' AND (account_status = \'active\' OR account_status IS NULL)');
+                
+                // Get detailed course counts by status
+                const actualActiveCourses = await pool.query('SELECT COUNT(*) as count FROM courses WHERE is_published = true AND is_launched = true');
+                const actualPublishedCourses = await pool.query('SELECT COUNT(*) as count FROM courses WHERE is_published = true');
+                const actualDraftCourses = await pool.query('SELECT COUNT(*) as count FROM courses WHERE status = \'draft\' OR is_published = false');
+                
+                // Get detailed enrollment counts
+                const actualCompletedEnrollments = await pool.query('SELECT COUNT(*) as count FROM enrollments WHERE status = \'completed\'');
+                const actualPendingEnrollments = await pool.query('SELECT COUNT(*) as count FROM enrollments WHERE status = \'pending_approval\'');
+                const actualPaymentPendingEnrollments = await pool.query('SELECT COUNT(*) as count FROM enrollments WHERE status = \'pending_payment\'');
+                
+                // Get actual payment and request counts with error handling
+                let actualPendingPayments, actualPendingRequests, actualCompletedPayments, actualTotalRevenue, actualOutstandingAmount;
+                
+                try {
+                    actualPendingPayments = await pool.query('SELECT COUNT(*) as count FROM payments WHERE status IN (\'due\', \'pending_review\', \'late\')');
+                } catch (err) {
+                    console.log('Payments table may not exist, using 0 for pending payments');
+                    actualPendingPayments = { rows: [{ count: 0 }] };
+                }
+                
+                try {
+                    actualPendingRequests = await pool.query('SELECT COUNT(*) as count FROM user_edit_requests WHERE status = \'pending\'');
+                } catch (err) {
+                    console.log('User edit requests table may not exist, using 0');
+                    actualPendingRequests = { rows: [{ count: 0 }] };
+                }
+                
+                try {
+                    actualCompletedPayments = await pool.query('SELECT COUNT(*) as count FROM payments WHERE status = \'paid\'');
+                    actualTotalRevenue = await pool.query('SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status = \'paid\'');
+                    actualOutstandingAmount = await pool.query('SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status IN (\'due\', \'pending_review\', \'late\')');
+                } catch (err) {
+                    console.log('Payment calculations failed, using defaults');
+                    actualCompletedPayments = { rows: [{ count: 0 }] };
+                    actualTotalRevenue = { rows: [{ total: 0 }] };
+                    actualOutstandingAmount = { rows: [{ total: 0 }] };
+                }
+                
                 roleSpecificStats = {
-                    total_users: 156,
-                    total_courses: 25,
-                    pending_payments: 8,
-                    pending_requests: 3
+                    total_users: parseInt(actualUserCount.rows[0].count),
+                    total_courses: parseInt(actualCourseCount.rows[0].count),
+                    active_enrollments: parseInt(actualEnrollmentCount.rows[0].count),
+                    pending_payments: parseInt(actualPendingPayments.rows[0].count),
+                    pending_requests: parseInt(actualPendingRequests.rows[0].count),
+                    completed_payments: parseInt(actualCompletedPayments.rows[0].count),
+                    total_revenue: parseFloat(actualTotalRevenue.rows[0].total),
+                    outstanding_amount: parseFloat(actualOutstandingAmount.rows[0].total),
+                    // Detailed user counts
+                    total_students: parseInt(actualStudentCount.rows[0].count),
+                    total_teachers: parseInt(actualTeacherCount.rows[0].count),
+                    total_admins: parseInt(actualAdminCount.rows[0].count),
+                    unique_active_students: parseInt(actualStudentCount.rows[0].count), // Same as total_students for now
+                    // Detailed course counts
+                    active_courses: parseInt(actualActiveCourses.rows[0].count),
+                    published_courses: parseInt(actualPublishedCourses.rows[0].count),
+                    draft_courses: parseInt(actualDraftCourses.rows[0].count),
+                    // Detailed enrollment counts
+                    completed_enrollments: parseInt(actualCompletedEnrollments.rows[0].count),
+                    pending_enrollments: parseInt(actualPendingEnrollments.rows[0].count),
+                    payment_pending_enrollments: parseInt(actualPaymentPendingEnrollments.rows[0].count)
                 };
                 
                 // Also add sample data for admin-specific sections
@@ -137,20 +202,54 @@ export const getServerSideProps = withAuth(async (context) => {
                     }
                 };
             } else if (user.role === 'finance') {
-                roleSpecificStats = {
-                    pending_review_count: 5,
-                    due_count: 12,
-                    late_count: 3,
-                    total_paid_this_month: 15750
-                };
+                // Get actual finance statistics with error handling
+                try {
+                    const pendingReviewCount = await pool.query('SELECT COUNT(*) as count FROM payments WHERE status = \'pending_review\'');
+                    const dueCount = await pool.query('SELECT COUNT(*) as count FROM payments WHERE status = \'due\'');
+                    const lateCount = await pool.query('SELECT COUNT(*) as count FROM payments WHERE status = \'late\'');
+                    const totalPaidThisMonth = await pool.query('SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status = \'paid\' AND paid_at >= CURRENT_DATE - INTERVAL \'30 days\'');
+                    
+                    roleSpecificStats = {
+                        pending_review_count: parseInt(pendingReviewCount.rows[0].count),
+                        due_count: parseInt(dueCount.rows[0].count),
+                        late_count: parseInt(lateCount.rows[0].count),
+                        total_paid_this_month: parseFloat(totalPaidThisMonth.rows[0].total)
+                    };
+                } catch (err) {
+                    console.log('Finance statistics failed, using defaults:', err.message);
+                    roleSpecificStats = {
+                        pending_review_count: 0,
+                        due_count: 0,
+                        late_count: 0,
+                        total_paid_this_month: 0
+                    };
+                }
             } else if (user.role === 'head') {
-                roleSpecificStats = {
-                    teacher_count: 8,
-                    student_count: 120,
-                    published_courses_count: 18,
-                    active_courses_count: 15,
-                    draft_courses_count: 4
-                };
+                // Get actual head statistics
+                try {
+                    const teacherCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = \'teacher\' AND (account_status = \'active\' OR account_status IS NULL)');
+                    const studentCount = await pool.query('SELECT COUNT(*) as count FROM users WHERE role = \'student\' AND (account_status = \'active\' OR account_status IS NULL)');
+                    const publishedCoursesCount = await pool.query('SELECT COUNT(*) as count FROM courses WHERE is_published = true');
+                    const activeCoursesCount = await pool.query('SELECT COUNT(*) as count FROM courses WHERE is_published = true AND is_launched = true');
+                    const draftCoursesCount = await pool.query('SELECT COUNT(*) as count FROM courses WHERE status = \'draft\' OR is_published = false');
+                    
+                    roleSpecificStats = {
+                        teacher_count: parseInt(teacherCount.rows[0].count),
+                        student_count: parseInt(studentCount.rows[0].count),
+                        published_courses_count: parseInt(publishedCoursesCount.rows[0].count),
+                        active_courses_count: parseInt(activeCoursesCount.rows[0].count),
+                        draft_courses_count: parseInt(draftCoursesCount.rows[0].count)
+                    };
+                } catch (err) {
+                    console.log('Head statistics failed, using defaults:', err.message);
+                    roleSpecificStats = {
+                        teacher_count: 0,
+                        student_count: 0,
+                        published_courses_count: 0,
+                        active_courses_count: 0,
+                        draft_courses_count: 0
+                    };
+                }
             }
             
             // For other roles (finance, head, etc.)
@@ -198,18 +297,37 @@ export const getServerSideProps = withAuth(async (context) => {
 
     if (['finance', 'admin', 'head'].includes(user.role)) {
         try {
-            const dashboardStats = await getDashboardStats(user.role, user.id);
+            const dashboardStats = await getDashboardStats(user);
             console.log(`Dashboard stats for ${user.role}:`, dashboardStats);
             props.stats = dashboardStats;
         } catch (error) {
             console.error('Error fetching dashboard stats:', error);
-            // Provide fallback stats for admin
+            // Provide fallback stats based on role
             if (user.role === 'admin') {
                 props.stats = {
-                    total_users: 0,
+                    total_users: 0, // This will show ALL users count
                     total_courses: 0,
+                    active_enrollments: 0,
                     pending_payments: 0,
-                    pending_requests: 0
+                    pending_requests: 0,
+                    completed_payments: 0,
+                    total_revenue: 0,
+                    outstanding_amount: 0
+                };
+            } else if (user.role === 'finance') {
+                props.stats = {
+                    pending_review_count: 0,
+                    due_count: 0,
+                    late_count: 0,
+                    total_paid_this_month: 0
+                };
+            } else if (user.role === 'head') {
+                props.stats = {
+                    teacher_count: 0,
+                    student_count: 0,
+                    published_courses_count: 0,
+                    active_courses_count: 0,
+                    draft_courses_count: 0
                 };
             }
         }
