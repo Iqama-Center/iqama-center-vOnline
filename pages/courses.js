@@ -452,20 +452,90 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
     );
 };
 
+/**
+ * Static Site Generation with ISR for Courses Page
+ * Generates public course data with incremental regeneration
+ */
+export async function getStaticProps() {
+    try {
+        // Get public courses data that doesn't require authentication
+        const coursesResult = await getFilteredCourses(
+            { status: 'active', limit: 100 }, 
+            null // No user ID for static generation
+        );
+
+        // Get course statistics
+        const statsResult = await pool.query(`
+            SELECT 
+                COUNT(*) as total_courses,
+                COUNT(CASE WHEN status = 'active' THEN 1 END) as active_courses,
+                (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students
+            FROM courses 
+            WHERE status IN ('active', 'published')
+        `);
+
+        // Get course categories
+        const categoriesResult = await pool.query(`
+            SELECT DISTINCT 
+                COALESCE(details->>'category', 'عام') as category,
+                COUNT(*) as course_count
+            FROM courses 
+            WHERE status IN ('active', 'published')
+            GROUP BY details->>'category'
+            ORDER BY course_count DESC
+            LIMIT 10
+        `);
+
+        const stats = statsResult.rows[0] || {};
+        const categories = categoriesResult.rows || [];
+
+        return {
+            props: {
+                courses: JSON.parse(JSON.stringify(coursesResult)),
+                stats: JSON.parse(JSON.stringify(stats)),
+                categories: JSON.parse(JSON.stringify(categories)),
+                lastUpdated: new Date().toISOString(),
+                metadata: {
+                    totalFetched: coursesResult.length,
+                    cacheStrategy: 'ISR',
+                    generatedAt: new Date().toISOString()
+                }
+            },
+            // Revalidate every 5 minutes for course data
+            revalidate: 300
+        };
+    } catch (error) {
+        console.error('Error in getStaticProps for courses:', error);
+        
+        return {
+            props: {
+                courses: [],
+                stats: { total_courses: 0, active_courses: 0, total_students: 0 },
+                categories: [],
+                lastUpdated: new Date().toISOString(),
+                metadata: {
+                    hasError: true,
+                    errorMessage: error.message,
+                    generatedAt: new Date().toISOString()
+                }
+            },
+            revalidate: 60
+        };
+    }
+}
+
+/**
+ * Server-side rendering for user-specific data
+ * Combines static props with user authentication
+ */
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
     
-    // Allow all authenticated users to access courses
-    // No role restriction - anyone can view and enroll in courses
-
     try {
-        // Get courses user can enroll in using optimized query
-        const coursesResult = await getFilteredCourses(
-            { status: 'active', limit: 50 }, 
-            user.id
-        );
-
-        // Get courses user is enrolled in (all statuses except completed/cancelled)
+        // Get static props first
+        const staticProps = await getStaticProps();
+        
+        // Get user-specific enrolled courses
         const enrolledCoursesResult = await pool.query(`
             SELECT c.id, c.name, c.description, c.details, c.status, c.created_at,
                    e.status as enrollment_status, e.id as enrollment_id, e.created_at as enrollment_date
@@ -480,17 +550,20 @@ export const getServerSideProps = withAuth(async (context) => {
 
         return {
             props: {
+                ...staticProps.props,
                 user: JSON.parse(JSON.stringify(user)),
-                courses: JSON.parse(JSON.stringify(coursesResult)),
                 enrolledCourses: JSON.parse(JSON.stringify(enrolledCoursesResult.rows))
             }
         };
     } catch (err) {
         console.error('Courses page error:', err);
+        
+        // Fallback to static props with empty user data
+        const staticProps = await getStaticProps();
         return {
             props: {
+                ...staticProps.props,
                 user: JSON.parse(JSON.stringify(user)),
-                courses: [],
                 enrolledCourses: []
             }
         };

@@ -86,8 +86,84 @@ const PerformancePage = ({ user, performance }) => {
     );
 };
 
+/**
+ * Static Site Generation with ISR for Performance Page
+ * Generates public performance statistics and benchmarks
+ */
+export async function getStaticProps() {
+    try {
+        // Get public performance statistics and benchmarks
+        const publicStatsResult = await pool.query(`
+            SELECT 
+                AVG(grade) as avg_grade_all_users,
+                COUNT(*) as total_submissions,
+                COUNT(DISTINCT user_id) as active_users,
+                MAX(grade) as highest_grade,
+                MIN(grade) as lowest_grade
+            FROM submissions 
+            WHERE status = 'graded' AND grade IS NOT NULL
+        `);
+
+        // Get course performance averages
+        const courseAvgResult = await pool.query(`
+            SELECT 
+                c.name,
+                AVG(s.grade) as course_avg,
+                COUNT(s.id) as submission_count
+            FROM submissions s
+            JOIN tasks t ON s.task_id = t.id
+            JOIN course_schedule cs ON t.schedule_id = cs.id
+            JOIN courses c ON cs.course_id = c.id
+            WHERE s.status = 'graded' AND s.grade IS NOT NULL
+            GROUP BY c.id, c.name
+            ORDER BY course_avg DESC
+            LIMIT 10
+        `);
+
+        const publicStats = publicStatsResult.rows[0] || {};
+        const courseAverages = courseAvgResult.rows || [];
+
+        return {
+            props: {
+                publicPerformanceStats: JSON.parse(JSON.stringify(publicStats)),
+                courseAverages: JSON.parse(JSON.stringify(courseAverages)),
+                lastUpdated: new Date().toISOString(),
+                metadata: {
+                    cacheStrategy: 'ISR',
+                    generatedAt: new Date().toISOString()
+                }
+            },
+            // Revalidate every 10 minutes for performance data
+            revalidate: 600
+        };
+    } catch (error) {
+        console.error('Error in getStaticProps for performance:', error);
+        
+        return {
+            props: {
+                publicPerformanceStats: {},
+                courseAverages: [],
+                lastUpdated: new Date().toISOString(),
+                metadata: {
+                    hasError: true,
+                    errorMessage: error.message,
+                    generatedAt: new Date().toISOString()
+                }
+            },
+            revalidate: 60
+        };
+    }
+}
+
+/**
+ * Server-side rendering for user-specific performance data
+ */
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
+    
+    try {
+        // Get static props first
+        const staticProps = await getStaticProps();
     // استعلام لجلب متوسط الدرجات وعدد المهام المصححة
     const statsQuery = `
         SELECT 
@@ -123,10 +199,29 @@ export const getServerSideProps = withAuth(async (context) => {
     };
     return {
         props: {
+            ...staticProps.props,
             user,
             performance: JSON.parse(JSON.stringify(performance)),
         },
     };
+    } catch (error) {
+        console.error('Performance page error:', error);
+        
+        // Fallback to static props with empty performance data
+        const staticProps = await getStaticProps();
+        return {
+            props: {
+                ...staticProps.props,
+                user,
+                performance: {
+                    average_grade: 0,
+                    graded_tasks: 0,
+                    timeline: [],
+                    course_performance: []
+                }
+            }
+        };
+    }
 });
 
 export default PerformancePage;

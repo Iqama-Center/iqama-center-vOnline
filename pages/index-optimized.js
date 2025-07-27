@@ -38,22 +38,35 @@ export async function getStaticProps() {
                     {
                         id: 1,
                         name: "دورة تعليم القرآن الكريم",
-                        description: "دورة شاملة لتعليم القرآن الكريم والتجويد",
-                        details: { category: "تعليم ديني" },
+                        description: "دورة شاملة لتعليم القرآن الكريم والتجويد مع أفضل المعلمين",
+                        details: { category: "تعليم ديني", level: "مبتدئ إلى متقدم" },
                         enrolled_count: 25,
                         course_fee: 300,
                         duration_days: 30,
-                        teacher_name: "الأستاذ محمد أحمد"
+                        teacher_name: "الأستاذ محمد أحمد",
+                        created_at: new Date().toISOString()
                     },
                     {
                         id: 2,
                         name: "دورة اللغة العربية",
-                        description: "تعلم اللغة العربية من الأساسيات",
-                        details: { category: "لغات" },
+                        description: "تعلم اللغة العربية من الأساسيات حتى الإتقان",
+                        details: { category: "لغات", level: "مبتدئ" },
                         enrolled_count: 18,
                         course_fee: 250,
                         duration_days: 45,
-                        teacher_name: "الأستاذة فاطمة علي"
+                        teacher_name: "الأستاذة فاطمة علي",
+                        created_at: new Date().toISOString()
+                    },
+                    {
+                        id: 3,
+                        name: "دورة الفقه الإسلامي",
+                        description: "دراسة أحكام الفقه الإسلامي وتطبيقاتها العملية",
+                        details: { category: "علوم شرعية", level: "متوسط" },
+                        enrolled_count: 22,
+                        course_fee: 400,
+                        duration_days: 60,
+                        teacher_name: "الشيخ عبد الرحمن محمد",
+                        created_at: new Date().toISOString()
                     }
                 ],
                 lastUpdated: new Date().toISOString(),
@@ -65,6 +78,9 @@ export async function getStaticProps() {
 
     // Production: Optimized single query
     try {
+        console.log('🔄 Production mode: Running optimized database query');
+        
+        // Single optimized query instead of multiple queries
         const result = await pool.query(`
             WITH stats AS (
                 SELECT 
@@ -93,13 +109,20 @@ export async function getStaticProps() {
         `);
 
         const data = result.rows[0];
-        const siteStats = data.site_stats || {};
+        const siteStats = data.site_stats || {
+            total_courses: 0,
+            total_students: 0,
+            total_teachers: 0,
+            completed_courses: 0
+        };
+        
         const featuredCourses = (data.featured_courses || []).map(course => ({
             ...course,
             details: typeof course.details === 'object' ? course.details : {},
             enrolled_count: parseInt(course.enrolled_count || 0),
             course_fee: parseFloat(course.course_fee || 0),
-            duration_days: parseInt(course.duration_days || 0)
+            duration_days: parseInt(course.duration_days || 0),
+            created_at: course.created_at ? new Date(course.created_at).toISOString() : null
         }));
 
         return {
@@ -114,12 +137,13 @@ export async function getStaticProps() {
                 lastUpdated: new Date().toISOString(),
                 isDevelopmentMode: false
             },
-            revalidate: 300
+            revalidate: 300 // 5 minutes for production
         };
 
     } catch (error) {
-        console.error('Error in getStaticProps for home page:', error);
+        console.error('❌ Error in getStaticProps for home page:', error);
         
+        // Fast error recovery with realistic fallback data
         return {
             props: {
                 siteStats: {
@@ -130,9 +154,10 @@ export async function getStaticProps() {
                 },
                 featuredCourses: [],
                 lastUpdated: new Date().toISOString(),
-                hasError: true
+                hasError: true,
+                errorMessage: error.message
             },
-            revalidate: 60
+            revalidate: 60 // Retry faster on error
         };
     }
 }

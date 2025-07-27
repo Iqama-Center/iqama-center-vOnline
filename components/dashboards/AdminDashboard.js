@@ -47,7 +47,7 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     </div>
                     <div className="stat-content">
                         <h3>طلبات التعديل</h3>
-                        <p className="stat-number">{pendingRequests ? pendingRequests.length : '...'}</p>
+                        <p className="stat-number">{stats ? stats.pending_requests : '...'}</p>
                         <small><i className="fas fa-arrow-left"></i> انقر للعرض</small>
                     </div>
                 </div>

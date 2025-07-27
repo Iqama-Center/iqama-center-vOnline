@@ -43,12 +43,154 @@ const DashboardPage = (props) => {
     );
 };
 
+/**
+ * Server-side rendering for user-specific dashboard data with fast fallbacks
+ */
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
-    let props = { user };
+    
+    try {
+        // Fast fallback for development mode with role-specific data
+        if (process.env.NODE_ENV === 'development') {
+            console.log('🚀 Dashboard development mode: Using fast fallback data for', user.role);
+            
+            let roleSpecificStats = {};
+            
+            // Add role-specific stats for development
+            if (user.role === 'admin') {
+                roleSpecificStats = {
+                    total_users: 156,
+                    total_courses: 25,
+                    pending_payments: 8,
+                    pending_requests: 3
+                };
+                
+                // Also add sample data for admin-specific sections
+                const recentUsers = [
+                    { id: 1, full_name: 'أحمد محمد علي', email: 'ahmed@example.com', role: 'student', created_at: new Date().toISOString() },
+                    { id: 2, full_name: 'فاطمة أحمد', email: 'fatima@example.com', role: 'teacher', created_at: new Date().toISOString() },
+                    { id: 3, full_name: 'محمد حسن', email: 'mohamed@example.com', role: 'student', created_at: new Date().toISOString() }
+                ];
+                
+                const recentCourses = [
+                    { id: 1, name: 'دورة تعليم القرآن الكريم', status: 'active', created_at: new Date().toISOString() },
+                    { id: 2, name: 'دورة اللغة العربية', status: 'published', created_at: new Date().toISOString() }
+                ];
+                
+                const pendingRequests = [
+                    { id: 1, user_name: 'علي أحمد', request_type: 'تعديل البيانات الشخصية', created_at: new Date().toISOString() },
+                    { id: 2, user_name: 'سارة محمد', request_type: 'تغيير كلمة المرور', created_at: new Date().toISOString() },
+                    { id: 3, user_name: 'خالد حسن', request_type: 'تحديث معلومات الاتصال', created_at: new Date().toISOString() }
+                ];
+                
+                return {
+                    props: {
+                        user,
+                        stats: roleSpecificStats,
+                        recentUsers,
+                        recentCourses,
+                        pendingRequests,
+                        publicStats: {
+                            totalCourses: 25,
+                            totalStudents: 150,
+                            totalTeachers: 12,
+                            activeCourses: 18
+                        },
+                        recentActivities: [
+                            {
+                                activity_type: 'course_created',
+                                title: 'دورة تعليم القرآن الكريم',
+                                created_at: new Date().toISOString(),
+                                user_name: 'الأستاذ محمد أحمد'
+                            }
+                        ],
+                        lastUpdated: new Date().toISOString(),
+                        isDevelopmentMode: true
+                    }
+                };
+            } else if (user.role === 'finance') {
+                roleSpecificStats = {
+                    pending_review_count: 5,
+                    due_count: 12,
+                    late_count: 3,
+                    total_paid_this_month: 15750
+                };
+            } else if (user.role === 'head') {
+                roleSpecificStats = {
+                    teacher_count: 8,
+                    student_count: 120,
+                    published_courses_count: 18,
+                    active_courses_count: 15,
+                    draft_courses_count: 4
+                };
+            }
+            
+            // For other roles (finance, head, etc.)
+            return {
+                props: {
+                    user,
+                    stats: roleSpecificStats,
+                    publicStats: {
+                        totalCourses: 25,
+                        totalStudents: 150,
+                        totalTeachers: 12,
+                        activeCourses: 18
+                    },
+                    recentActivities: [
+                        {
+                            activity_type: 'course_created',
+                            title: 'دورة تعليم القرآن الكريم',
+                            created_at: new Date().toISOString(),
+                            user_name: 'الأستاذ محمد أحمد'
+                        }
+                    ],
+                    lastUpdated: new Date().toISOString(),
+                    isDevelopmentMode: true
+                }
+            };
+        }
+
+        // Get public dashboard statistics for production
+        const statsResult = await getDashboardStats(null);
+        
+        // Get recent public activities
+        const recentActivitiesResult = await pool.query(`
+            SELECT 
+                'course_created' as activity_type,
+                c.name as title,
+                c.created_at,
+                u.full_name as user_name
+            FROM courses c
+            LEFT JOIN users u ON c.teacher_id = u.id
+            WHERE c.status IN ('active', 'published')
+            ORDER BY c.created_at DESC
+            LIMIT 10
+        `);
+        
+        let props = { 
+            user,
+            publicStats: JSON.parse(JSON.stringify(statsResult)),
+            recentActivities: JSON.parse(JSON.stringify(recentActivitiesResult.rows)),
+            lastUpdated: new Date().toISOString()
+        };
 
     if (['finance', 'admin', 'head'].includes(user.role)) {
-        props.stats = await getDashboardStats(user.role, user.id);
+        try {
+            const dashboardStats = await getDashboardStats(user.role, user.id);
+            console.log(`Dashboard stats for ${user.role}:`, dashboardStats);
+            props.stats = dashboardStats;
+        } catch (error) {
+            console.error('Error fetching dashboard stats:', error);
+            // Provide fallback stats for admin
+            if (user.role === 'admin') {
+                props.stats = {
+                    total_users: 0,
+                    total_courses: 0,
+                    pending_payments: 0,
+                    pending_requests: 0
+                };
+            }
+        }
     }
 
     if (user.role === 'admin') {
@@ -301,6 +443,26 @@ export const getServerSideProps = withAuth(async (context) => {
     }
 
     return { props };
+    } catch (error) {
+        console.error('Dashboard error:', error);
+        
+        // Fallback with basic user data
+        return {
+            props: {
+                user,
+                stats: {
+                    total_users: 0,
+                    total_courses: 0,
+                    pending_payments: 0,
+                    pending_requests: 0
+                },
+                recentUsers: [],
+                recentCourses: [],
+                pendingRequests: [],
+                hasError: true
+            }
+        };
+    }
 });
 
 export default DashboardPage;
