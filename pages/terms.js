@@ -1,8 +1,10 @@
 import React from 'react';
 import Head from 'next/head';
 import PublicLayout from '../components/PublicLayout';
+import { createSuccessResponse, REVALIDATION_TIMES } from '../lib/isrUtils';
+import { ENHANCED_REVALIDATION } from '../lib/enhancedISRUtils';
 
-export default function TermsPage() {
+export default function TermsPage({ lastUpdated, metadata }) {
     return (
         <PublicLayout title="الشروط والأحكام - مركز إقامة الكتاب">
             <div className="terms-container">
@@ -90,6 +92,9 @@ export default function TermsPage() {
 
                         <div className="last-updated">
                             <p><strong>آخر تحديث:</strong> 1 يناير 2024</p>
+                            {lastUpdated && (
+                                <p><small>تم تحديث الصفحة: {new Date(lastUpdated).toLocaleString('ar-EG')}</small></p>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -174,4 +179,36 @@ export default function TermsPage() {
             `}</style>
         </PublicLayout>
     );
+}
+
+/**
+ * Static Site Generation with ISR for Terms Page
+ * Static content with long revalidation time for optimal performance
+ */
+export async function getStaticProps() {
+    try {
+        return createSuccessResponse({
+            metadata: {
+                pageType: 'static_content',
+                cacheStrategy: 'ISR',
+                contentVersion: '1.0.0',
+                generatedAt: new Date().toISOString()
+            }
+        }, ENHANCED_REVALIDATION.STATIC_CONTENT);
+        
+    } catch (error) {
+        console.error('Error in getStaticProps for terms page:', error);
+        
+        return {
+            props: {
+                lastUpdated: new Date().toISOString(),
+                hasError: true,
+                metadata: {
+                    error: error.message,
+                    pageType: 'static_content'
+                }
+            },
+            revalidate: ENHANCED_REVALIDATION.ERROR_RECOVERY
+        };
+    }
 }
