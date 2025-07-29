@@ -9,6 +9,7 @@ const Sidebar = ({ user, currentPath, isMobile, sidebarExpanded, setSidebarExpan
     const navLinks = [
         { href: '/dashboard', text: 'لوحة التحكم', icon: 'fa-tachometer-alt', roles: ['admin', 'student', 'teacher', 'parent', 'head', 'finance', 'worker'] },
         { href: '/courses', text: 'الدورات', icon: 'fa-book', roles: ['student', 'teacher', 'worker', 'parent'] },
+        { href: '/teacher/my-courses', text: 'دوراتي', icon: 'fa-chalkboard-teacher', roles: ['teacher'] },
         { title: 'إدارة النظام', roles: ['admin'] },
         { href: '/admin/users', text: 'إدارة المستخدمين', icon: 'fa-users-cog', roles: ['admin'] },
         { href: '/admin/courses/manage', text: 'إدارة الدورات الشاملة', icon: 'fa-cogs', roles: ['admin', 'head'] },
