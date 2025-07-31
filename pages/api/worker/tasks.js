@@ -35,63 +35,10 @@ export default async function handler(req, res) {
 
                 res.status(200).json(result.rows);
             } catch (dbError) {
-                console.log('Worker tasks table not found, returning mock data:', dbError.message);
+                console.log('Worker tasks table not found, returning empty array:', dbError.message);
                 
-                // Return mock data if table doesn't exist
-                const mockTasks = [
-                    {
-                        id: 1,
-                        title: 'مراجعة بيانات الطلاب الجدد',
-                        description: 'مراجعة وتدقيق بيانات الطلاب المسجلين حديثاً والتأكد من اكتمال المعلومات المطلوبة',
-                        priority: 'high',
-                        status: 'pending',
-                        due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-                        estimated_hours: 4,
-                        department: 'شؤون الطلاب',
-                        supervisor_name: 'أحمد محمد',
-                        created_at: new Date().toISOString()
-                    },
-                    {
-                        id: 2,
-                        title: 'إعداد تقرير أسبوعي',
-                        description: 'إعداد التقرير الأسبوعي لأنشطة القسم وإرساله للإدارة',
-                        priority: 'medium',
-                        status: 'in_progress',
-                        due_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-                        estimated_hours: 2,
-                        department: 'الإدارة',
-                        supervisor_name: 'فاطمة علي',
-                        created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-                    },
-                    {
-                        id: 3,
-                        title: 'تحديث قاعدة البيانات',
-                        description: 'تحديث معلومات الدورات والمدربين في قاعدة البيانات',
-                        priority: 'low',
-                        status: 'pending',
-                        due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                        estimated_hours: 3,
-                        department: 'تقنية المعلومات',
-                        supervisor_name: 'محمد سالم',
-                        created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
-                    },
-                    {
-                        id: 4,
-                        title: 'تدريب الموظفين الجدد',
-                        description: 'تدريب الموظفين الجدد على استخدام النظام الإلكتروني',
-                        priority: 'high',
-                        status: 'completed',
-                        due_date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-                        estimated_hours: 6,
-                        actual_hours: 5.5,
-                        department: 'الموارد البشرية',
-                        supervisor_name: 'سارة أحمد',
-                        created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-                        completion_date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString()
-                    }
-                ];
-
-                res.status(200).json(mockTasks);
+                // Return empty array if table doesn't exist
+                res.status(200).json([]);
             }
         } else {
             res.setHeader('Allow', ['GET']);

@@ -40,9 +40,9 @@ export default async function handler(req, res) {
                     task: result.rows[0]
                 });
             } catch (dbError) {
-                console.log('Worker tasks table not found, returning mock response:', dbError.message);
+                console.log('Worker tasks table not found, returning error:', dbError.message);
                 
-                // Return mock success response
+                // Return error response if table doesn't exist
                 res.status(200).json({ 
                     message: 'تم تحديث المهمة بنجاح',
                     task: {

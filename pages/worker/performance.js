@@ -14,10 +14,22 @@ const WorkerPerformancePage = ({ user }) => {
 
     const loadPerformanceData = useCallback(async () => {
         try {
-            // Mock performance data - replace with actual API call
-            const mockData = generateMockPerformanceData();
-            setPerformanceData(mockData.summary);
-            setEvaluations(mockData.evaluations);
+            // Try to load real performance data from API
+            try {
+                const response = await fetch(`/api/worker/performance?period=${currentPeriod}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setPerformanceData(data.summary || null);
+                    setEvaluations(data.evaluations || []);
+                } else {
+                    setPerformanceData(null);
+                    setEvaluations([]);
+                }
+            } catch (error) {
+                console.error('Failed to load performance data:', error);
+                setPerformanceData(null);
+                setEvaluations([]);
+            }
         } catch (error) {
             console.error('Error loading performance data:', error);
         } finally {

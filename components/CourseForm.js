@@ -41,6 +41,14 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         }
     });
     const router = useRouter();
+    
+    // Get available users (teachers) from Zustand store
+    const teacherUsers = getTeachersFromUsers(allUsers);
+    
+    // Define availableUsers for use throughout the component
+    const availableUsers = allUsers.length > 0 ? allUsers : 
+                          teachers.length > 0 ? teachers : 
+                          teacherUsers.length > 0 ? teacherUsers : [];
 
     // Load teachers when component mounts
     useEffect(() => {
@@ -220,9 +228,6 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 { field: course.start_date, name: 'تاريخ بدء الدورة' },
                 { field: course.days_per_week, name: 'عدد أيام الدورة في الأسبوع' },
                 { field: course.hours_per_day, name: 'مدة اليوم (بالساعات)' },
-                { field: course.details?.cost, name: 'التكلفة' },
-                { field: course.details?.currency, name: 'العملة' },
-                { field: course.details?.max_seats, name: 'العدد الأقصى للمقاعد' }
             ];
             
             const missingFields = requiredFields.filter(item => 
@@ -248,7 +253,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
     };
 
     // Get teachers from Zustand store, fallback to props if store is empty
-    const teacherUsers = teachers.length > 0 ? teachers : allUsers.filter(u => u.role === 'teacher');
+    // teacherUsers is already defined at the top of the component
     
     // Log current teachers state
     console.log('Current teachers in CourseForm render:', {
@@ -554,117 +559,6 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                     />
                 </div>
 
-                <div className="form-group">
-                    <label htmlFor="cost" style={{
-                        marginBottom: '15px',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        fontSize: '1.1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        fontFamily: 'Tajawal, Cairo, sans-serif'
-                    }}>💰 التكلفة</label>
-                    <input 
-                        type="number" 
-                        id="cost" 
-                        name="cost" 
-                        value={course.details?.cost || ''} 
-                        onChange={handleDetailsChange}
-                        required
-                        style={{
-                            padding: '12px 16px',
-                            border: '2px solid #f59e0b',
-                            borderRadius: '8px',
-                            fontSize: '1.1rem',
-                            fontFamily: 'Tajawal, Cairo, sans-serif',
-                            background: 'linear-gradient(135deg, #fef7cd 0%, #ffffff 100%)',
-                            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            fontWeight: 500,
-                            color: '#d97706',
-                            textAlign: 'center'
-                        }}
-                    />
-                </div>
-                
-                <div className="form-group">
-                    <label htmlFor="currency" style={{
-                        marginBottom: '15px',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        fontSize: '1.1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        fontFamily: 'Tajawal, Cairo, sans-serif'
-                    }}>💱 العملة</label>
-                    <select 
-                        id="currency" 
-                        name="currency" 
-                        value={course.details?.currency || 'EGP'} 
-                        onChange={handleDetailsChange}
-                        required
-                        style={{
-                            padding: '12px 16px',
-                            border: '2px solid #f59e0b',
-                            borderRadius: '8px',
-                            fontSize: '1.1rem',
-                            fontFamily: 'Tajawal, Cairo, sans-serif',
-                            background: 'linear-gradient(135deg, #fef7cd 0%, #ffffff 100%)',
-                            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            fontWeight: 500,
-                            color: '#d97706',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        <option value="EGP">جنيه مصري (EGP)</option>
-                        <option value="SAR">ريال سعودي (SAR)</option>
-                        <option value="USD">دولار أمريكي (USD)</option>
-                    </select>
-                </div>
-
-                <div className="form-group">
-                    <label htmlFor="max_seats" style={{
-                        marginBottom: '15px',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        fontSize: '1.1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        fontFamily: 'Tajawal, Cairo, sans-serif'
-                    }}>👥 العدد الأقصى للمقاعد</label>
-                    <input 
-                        type="number" 
-                        id="max_seats" 
-                        name="max_seats" 
-                        value={course.details?.max_seats || ''} 
-                        onChange={handleDetailsChange} 
-                        min="1"
-                        required
-                        style={{
-                            padding: '12px 16px',
-                            border: '2px solid #f59e0b',
-                            borderRadius: '8px',
-                            fontSize: '1.1rem',
-                            fontFamily: 'Tajawal, Cairo, sans-serif',
-                            background: 'linear-gradient(135deg, #fef7cd 0%, #ffffff 100%)',
-                            transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
-                            width: '100%',
-                            boxSizing: 'border-box',
-                            fontWeight: 500,
-                            color: '#d97706',
-                            textAlign: 'center'
-                        }}
-                    />
-                </div>
             </div>
         </div>
     );
@@ -909,8 +803,409 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                             />
                         </div>
                     </div>
+                        
+                        {/* المالية لكل درجة */}
+                        <div style={{ marginTop: '20px' }}>
+                            <h5 style={{
+                                margin: '0 0 15px 0',
+                                color: '#1e293b',
+                                fontSize: '1.1rem',
+                                fontWeight: 600,
+                                fontFamily: 'Tajawal, Cairo, sans-serif',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>💰 المالية لكل درجة</h5>
+                            
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                                gap: '15px',
+                                marginBottom: '15px'
+                            }}>
+                                <div>
+                                    <label style={{
+                                        display: 'block',
+                                        marginBottom: '8px',
+                                        fontWeight: 600,
+                                        color: '#374151',
+                                        fontSize: '0.9rem',
+                                        fontFamily: 'Tajawal, Cairo, sans-serif'
+                                    }}>نوع المعاملة المالية</label>
+                                    <select
+                                        value={config.financial?.type || 'none'}
+                                        onChange={(e) => handleParticipantConfigChange(level, 'financial', {
+                                            ...config.financial,
+                                            type: e.target.value
+                                        })}
+                                        style={{
+                                            width: '100%',
+                                            padding: '10px 12px',
+                                            border: '2px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            fontSize: '0.95rem',
+                                            fontFamily: 'Tajawal, Cairo, sans-serif',
+                                            background: '#ffffff'
+                                        }}
+                                    >
+                                        <option value="none">لا توجد معاملة مالية</option>
+                                        <option value="pay">دفع مصاريف</option>
+                                        <option value="receive">استلام مكافأة</option>
+                                    </select>
+                                </div>
+                                
+                                {config.financial?.type && config.financial.type !== 'none' && (
+                                    <>
+                                        <div>
+                                            <label style={{
+                                                display: 'block',
+                                                marginBottom: '8px',
+                                                fontWeight: 600,
+                                                color: '#374151',
+                                                fontSize: '0.9rem',
+                                                fontFamily: 'Tajawal, Cairo, sans-serif'
+                                            }}>المبلغ</label>
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={config.financial?.amount || ''}
+                                                onChange={(e) => handleParticipantConfigChange(level, 'financial', {
+                                                    ...config.financial,
+                                                    amount: e.target.value
+                                                })}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px 12px',
+                                                    border: '2px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.95rem',
+                                                    fontFamily: 'Tajawal, Cairo, sans-serif'
+                                                }}
+                                                placeholder="أدخل المبلغ"
+                                            />
+                                        </div>
+                                        
+                                        <div>
+                                            <label style={{
+                                                display: 'block',
+                                                marginBottom: '8px',
+                                                fontWeight: 600,
+                                                color: '#374151',
+                                                fontSize: '0.9rem',
+                                                fontFamily: 'Tajawal, Cairo, sans-serif'
+                                            }}>العملة</label>
+                                            <select
+                                                value={config.financial?.currency || 'EGP'}
+                                                onChange={(e) => handleParticipantConfigChange(level, 'financial', {
+                                                    ...config.financial,
+                                                    currency: e.target.value
+                                                })}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px 12px',
+                                                    border: '2px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.95rem',
+                                                    fontFamily: 'Tajawal, Cairo, sans-serif',
+                                                    background: '#ffffff'
+                                                }}
+                                            >
+                                                <option value="EGP">جنيه مصري (EGP)</option>
+                                                <option value="SAR">ريال سعودي (SAR)</option>
+                                                <option value="USD">دولار أمريكي (USD)</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div>
+                                            <label style={{
+                                                display: 'block',
+                                                marginBottom: '8px',
+                                                fontWeight: 600,
+                                                color: '#374151',
+                                                fontSize: '0.9rem',
+                                                fontFamily: 'Tajawal, Cairo, sans-serif'
+                                            }}>توقيت الدفع/الاستلام</label>
+                                            <select
+                                                value={config.financial?.timing || 'before_start'}
+                                                onChange={(e) => handleParticipantConfigChange(level, 'financial', {
+                                                    ...config.financial,
+                                                    timing: e.target.value
+                                                })}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px 12px',
+                                                    border: '2px solid #e2e8f0',
+                                                    borderRadius: '8px',
+                                                    fontSize: '0.95rem',
+                                                    fontFamily: 'Tajawal, Cairo, sans-serif',
+                                                    background: '#ffffff'
+                                                }}
+                                            >
+                                                <option value="before_start">قبل بدء الدورة</option>
+                                                <option value="monthly_start">في بداية كل شهر</option>
+                                                <option value="monthly_end">في نهاية كل شهر</option>
+                                                <option value="after_completion">بعد انتهاء الدورة</option>
+                                            </select>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                        
+                        {/* إضافة مستخدمين لكل درجة مسبقا */}
+                        <div style={{ marginTop: '20px' }}>
+                            <h5 style={{
+                                margin: '0 0 15px 0',
+                                color: '#1e293b',
+                                fontSize: '1.1rem',
+                                fontWeight: 600,
+                                fontFamily: 'Tajawal, Cairo, sans-serif',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px'
+                            }}>👥 إضافة مستخدمين لكل درجة مسبقا (اختياري)</h5>
+                            
+                            <div style={{
+                                border: '2px dashed #cbd5e0',
+                                borderRadius: '12px',
+                                padding: '15px',
+                                background: '#f8fafc'
+                            }}>
+                                <div style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '10px',
+                                    marginBottom: '15px'
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        id={`enable-preselect-${level}`}
+                                        checked={config.preselected_users?.enabled || false}
+                                        onChange={(e) => handleParticipantConfigChange(level, 'preselected_users', {
+                                            ...config.preselected_users,
+                                            enabled: e.target.checked,
+                                            users: config.preselected_users?.users || []
+                                        })}
+                                        style={{
+                                            width: '18px',
+                                            height: '18px',
+                                            cursor: 'pointer',
+                                            accentColor: '#3b82f6'
+                                        }}
+                                    />
+                                    <label 
+                                        htmlFor={`enable-preselect-${level}`}
+                                        style={{
+                                            fontWeight: 600,
+                                            color: '#374151',
+                                            fontSize: '0.95rem',
+                                            fontFamily: 'Tajawal, Cairo, sans-serif',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        تفعيل إضافة مستخدمين مسبقا لهذه الدرجة
+                                    </label>
+                                </div>
+                                
+                                {config.preselected_users?.enabled && (
+                                    <div>
+                                        <p style={{
+                                            fontSize: '0.85rem',
+                                            color: '#64748b',
+                                            marginBottom: '10px',
+                                            fontFamily: 'Tajawal, Cairo, sans-serif'
+                                        }}>
+                                            سيتم إرسال إشعار للمستخدمين المحددين عند نشر الدورة
+                                        </p>
+                                        
+                                        {/* قائمة المستخدمين المتاحين */}
+                                        <div style={{
+                                            maxHeight: '200px',
+                                            overflowY: 'auto',
+                                            border: '1px solid #e2e8f0',
+                                            borderRadius: '8px',
+                                            background: '#ffffff',
+                                            padding: '10px'
+                                        }}>
+                                            {availableUsers.filter(user => 
+                                                config.roles.includes(user.role)
+                                            ).map(user => (
+                                                <label key={user.id} style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '8px',
+                                                    padding: '8px',
+                                                    borderRadius: '6px',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.9rem',
+                                                    fontFamily: 'Tajawal, Cairo, sans-serif',
+                                                    backgroundColor: (config.preselected_users?.users || []).includes(user.id.toString()) 
+                                                        ? '#f0f9ff' : 'transparent',
+                                                    border: (config.preselected_users?.users || []).includes(user.id.toString()) 
+                                                        ? '1px solid #3b82f6' : '1px solid transparent'
+                                                }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={(config.preselected_users?.users || []).includes(user.id.toString())}
+                                                        onChange={(e) => {
+                                                            const currentUsers = config.preselected_users?.users || [];
+                                                            const userId = user.id.toString();
+                                                            const newUsers = e.target.checked
+                                                                ? [...currentUsers, userId]
+                                                                : currentUsers.filter(id => id !== userId);
+                                                            
+                                                            handleParticipantConfigChange(level, 'preselected_users', {
+                                                                ...config.preselected_users,
+                                                                users: newUsers
+                                                            });
+                                                        }}
+                                                        style={{
+                                                            width: '16px',
+                                                            height: '16px',
+                                                            cursor: 'pointer',
+                                                            accentColor: '#3b82f6'
+                                                        }}
+                                                    />
+                                                    <span>{user.full_name}</span>
+                                                    <span style={{ 
+                                                        fontSize: '0.8rem', 
+                                                        color: '#64748b',
+                                                        marginRight: 'auto'
+                                                    }}>
+                                                        ({user.role})
+                                                    </span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 ))}
+                
+                {/* المعلمون المكلفون - moved from إعدادات النشر */}
+                <div style={{
+                    background: 'white',
+                    padding: '25px',
+                    borderRadius: '16px',
+                    marginTop: '25px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                    border: '2px solid #e2e8f0'
+                }}>
+                    <h4 style={{
+                        margin: '0 0 20px 0',
+                        color: '#1e293b',
+                        fontSize: '1.3rem',
+                        fontWeight: 700,
+                        fontFamily: 'Tajawal, Cairo, sans-serif',
+                        textAlign: 'center',
+                        padding: '15px',
+                        background: 'linear-gradient(135deg, #fef3c7 0%, #ffffff 100%)',
+                        borderRadius: '12px',
+                        border: '2px solid #f59e0b'
+                    }}>👨‍🏫 المعلمون المكلفون</h4>
+                    
+                    {availableUsers.filter(user => user.role === 'teacher').length > 0 ? (
+                        <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                            gap: '12px',
+                            maxHeight: '300px',
+                            overflowY: 'auto',
+                            padding: '10px',
+                            border: '2px solid #f1f5f9',
+                            borderRadius: '12px',
+                            background: '#fafbfc'
+                        }}>
+                            {availableUsers.filter(user => user.role === 'teacher').map(teacher => (
+                                <label key={teacher.id} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px',
+                                    cursor: 'pointer',
+                                    padding: '10px 12px',
+                                    borderRadius: '8px',
+                                    transition: 'all 0.2s ease',
+                                    fontSize: '1rem',
+                                    fontFamily: 'Tajawal, Cairo, sans-serif',
+                                    backgroundColor: (course.details?.teachers || []).includes(teacher.id.toString()) 
+                                        ? '#dbeafe' 
+                                        : 'transparent',
+                                    border: (course.details?.teachers || []).includes(teacher.id.toString()) 
+                                        ? '1px solid #3b82f6' 
+                                        : '1px solid transparent',
+                                    fontWeight: (course.details?.teachers || []).includes(teacher.id.toString()) 
+                                        ? 600 
+                                        : 400
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={(course.details?.teachers || []).includes(teacher.id.toString())}
+                                        onChange={(e) => {
+                                            const currentTeachers = course.details?.teachers || [];
+                                            const teacherId = teacher.id.toString();
+                                            const newTeachers = e.target.checked
+                                                ? [...currentTeachers, teacherId]
+                                                : currentTeachers.filter(id => id !== teacherId);
+                                            
+                                            setCourse(prev => ({
+                                                ...prev,
+                                                details: { 
+                                                    ...prev.details, 
+                                                    teachers: newTeachers 
+                                                }
+                                            }));
+                                        }}
+                                        style={{
+                                            width: '16px',
+                                            height: '16px',
+                                            cursor: 'pointer',
+                                            accentColor: '#3b82f6'
+                                        }}
+                                    />
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '8px'
+                                        }}>
+                                            <span style={{ fontSize: '1.1rem' }}>👨‍🏫</span>
+                                            <span style={{
+                                                color: '#1e293b',
+                                                fontWeight: 'inherit'
+                                            }}>{teacher.full_name}</span>
+                                        </div>
+                                        {teacher.email && (
+                                            <div style={{
+                                                fontSize: '0.85rem',
+                                                color: '#64748b',
+                                                marginTop: '2px',
+                                                marginRight: '24px'
+                                            }}>
+                                                📧 {teacher.email}
+                                            </div>
+                                        )}
+                                    </div>
+                                </label>
+                            ))}
+                        </div>
+                    ) : (
+                        <div style={{
+                            padding: '20px',
+                            textAlign: 'center',
+                            color: '#64748b',
+                            fontSize: '1rem',
+                            fontFamily: 'Tajawal, Cairo, sans-serif',
+                            border: '2px dashed #cbd5e0',
+                            borderRadius: '12px',
+                            background: '#f8fafc'
+                        }}>
+                            ⚠️ لا يوجد معلمون متاحون في النظام
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

@@ -1,8 +1,5 @@
 import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
-import { getNotifications } from '../../../lib/queryOptimizer';
-
-
 
 export default async function handler(req, res) {
     const token = req.cookies.token;
@@ -12,9 +9,17 @@ export default async function handler(req, res) {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const userId = decoded.id;
 
-        const notifications = await getNotifications(userId, 20);
+        // Get notifications directly from database
+        const result = await pool.query(
+            `SELECT id, type, title, message, link, is_read, created_at 
+             FROM notifications 
+             WHERE user_id = $1 
+             ORDER BY created_at DESC 
+             LIMIT $2`,
+            [userId, 20]
+        );
 
-        res.status(200).json(notifications);
+        res.status(200).json(result.rows);
     } catch (err) {
         console.error("Get notifications error:", err);
         res.status(500).json({ message: 'Error fetching notifications.' });

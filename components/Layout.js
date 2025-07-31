@@ -43,18 +43,17 @@ const Sidebar = ({ user, currentPath, isMobile, sidebarExpanded, setSidebarExpan
                     }
                     return (
                         <li key={index}>
-                            <Link href={link.href} legacyBehavior>
-                                <a
-                                    className={currentPath === link.href ? 'active' : ''}
-                                    onClick={() => {
-                                        if (isMobile) {
-                                            setSidebarExpanded(false);
-                                        }
-                                    }}
-                                >
-                                    <i className={`fas ${link.icon} fa-fw`}></i>
+                            <Link 
+                                href={link.href}
+                                className={currentPath === link.href ? 'active' : ''}
+                                onClick={() => {
+                                    if (isMobile) {
+                                        setSidebarExpanded(false);
+                                    }
+                                }}
+                            >
+                                <i className={`fas ${link.icon} fa-fw`}></i>
                                     <span className="nav-text">{link.text}</span>
-                                </a>
                             </Link>
                         </li>
                     );
@@ -171,11 +170,13 @@ const Header = ({ user, onLogout, onToggleSidebar, isMobile }) => {
                             <div className="notification-header">الإشعارات</div>
                             <div className="notification-list">
                                 {notifications.length > 0 ? notifications.map(n => (
-                                    <Link key={n.id} href={n.link || '#'} legacyBehavior>
-                                        <a className={`notification-item ${!n.is_read ? 'unread' : ''}`}>
-                                            <span className="msg">{n.message}</span>
-                                            <span className="time">{new Date(n.created_at).toLocaleString('ar-EG')}</span>
-                                        </a>
+                                    <Link 
+                                        key={n.id} 
+                                        href={n.link || '#'} 
+                                        className={`notification-item ${!n.is_read ? 'unread' : ''}`}
+                                    >
+                                        <span className="msg">{n.message}</span>
+                                        <span className="time">{new Date(n.created_at).toLocaleString('ar-EG')}</span>
                                     </Link>
                                 )) : <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>لا توجد إشعارات</div>}
                             </div>
@@ -257,7 +258,7 @@ const Layout = ({ user = null, children }) => {
                             <div className="message-box">
                                 <h2><i className="fas fa-lock"></i> تم تقييد الوصول</h2>
                                 <p>لقد تم تقييد وصولك إلى المنصة بسبب تأخر سداد المصروفات. يرجى التوجه إلى قسم المالية لتسوية المستحقات.</p>
-                                <Link href="/finance" legacyBehavior><a className="btn-primary">الذهاب إلى قسم المالية</a></Link>
+                                <Link href="/finance" className="btn-primary">الذهاب إلى قسم المالية</Link>
                             </div>
                         </div>
                     )}

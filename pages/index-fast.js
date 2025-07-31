@@ -2,9 +2,9 @@ import React from 'react';
 import LandingPage from '../components/LandingPage';
 
 /**
- * Fast Loading Home Page - No Database Queries
- * This version loads instantly with static data for development
- * and fast user experience
+ * Fast Loading Home Page - DEPRECATED
+ * This version should not be used as it contains hardcoded data
+ * Use pages/index.js instead for real database data
  */
 export default function HomePage({ siteStats, featuredCourses, lastUpdated }) {
     return (

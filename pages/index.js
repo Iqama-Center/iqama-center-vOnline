@@ -3,8 +3,7 @@ import LandingPage from '../components/LandingPage';
 import pool from '../lib/db';
 
 /**
- * OPTIMIZED Home page component with INSTANT loading
- * Uses fast fallbacks in development for immediate loading
+ * Home page component with optimized loading
  */
 export default function HomePage({ siteStats, featuredCourses, lastUpdated, isDevelopmentMode }) {
     return (
@@ -18,14 +17,12 @@ export default function HomePage({ siteStats, featuredCourses, lastUpdated, isDe
 }
 
 /**
- * OPTIMIZED Static Site Generation with INSTANT Development Loading
- * - Development: Instant loading with static data (< 100ms)
- * - Production: Optimized single query with ISR
+ * Static Site Generation with optimized loading
  */
 export async function getStaticProps() {
-    // INSTANT loading in development mode - NO database queries
+    // Fast loading in development mode
     if (process.env.NODE_ENV === 'development') {
-        console.log('🚀 Development mode: Using INSTANT fallback data');
+        console.log('🚀 Development mode: Using fast fallback data');
         return {
             props: {
                 siteStats: {
@@ -38,39 +35,54 @@ export async function getStaticProps() {
                     {
                         id: 1,
                         name: "دورة تعليم القرآن الكريم",
-                        description: "دورة شاملة لتعليم القرآن الكريم والتجويد",
-                        details: { category: "تعليم ديني" },
+                        description: "دورة شاملة لتعليم القرآن الكريم والتجويد مع أفضل المعلمين",
+                        details: { category: "تعليم ديني", level: "مبتدئ إلى متقدم" },
                         enrolled_count: 25,
                         course_fee: 300,
                         duration_days: 30,
-                        teacher_name: "الأستاذ محمد أحمد"
+                        teacher_name: "الأستاذ محمد أحمد",
+                        created_at: new Date().toISOString()
                     },
                     {
                         id: 2,
                         name: "دورة اللغة العربية",
-                        description: "تعلم اللغة العربية من الأساسيات",
-                        details: { category: "لغات" },
+                        description: "تعلم اللغة العربية من الأساسيات حتى الإتقان",
+                        details: { category: "لغات", level: "مبتدئ" },
                         enrolled_count: 18,
                         course_fee: 250,
                         duration_days: 45,
-                        teacher_name: "الأستاذة فاطمة علي"
+                        teacher_name: "الأستاذة فاطمة علي",
+                        created_at: new Date().toISOString()
+                    },
+                    {
+                        id: 3,
+                        name: "دورة الفقه الإسلامي",
+                        description: "دراسة أحكام الفقه الإسلامي وتطبيقاتها العملية",
+                        details: { category: "علوم شرعية", level: "متوسط" },
+                        enrolled_count: 22,
+                        course_fee: 400,
+                        duration_days: 60,
+                        teacher_name: "الشيخ عبد الرحمن محمد",
+                        created_at: new Date().toISOString()
                     }
                 ],
                 lastUpdated: new Date().toISOString(),
                 isDevelopmentMode: true
             },
-            revalidate: 1 // Very fast revalidation in development
+            revalidate: 1
         };
     }
 
-    // Production: Optimized single query
+    // Production: Optimized database query
     try {
+        console.log('🏭 Production mode: Running optimized database query');
+        
         const result = await pool.query(`
             WITH stats AS (
                 SELECT 
                     (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_courses,
                     (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL) AND account_status = 'active') as total_teachers,
+                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND account_status = 'active') as total_teachers,
                     (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_courses
             ),
             featured AS (
@@ -93,13 +105,20 @@ export async function getStaticProps() {
         `);
 
         const data = result.rows[0];
-        const siteStats = data.site_stats || {};
+        const siteStats = data.site_stats || {
+            total_courses: 0,
+            total_students: 0,
+            total_teachers: 0,
+            completed_courses: 0
+        };
+        
         const featuredCourses = (data.featured_courses || []).map(course => ({
             ...course,
             details: typeof course.details === 'object' ? course.details : {},
             enrolled_count: parseInt(course.enrolled_count || 0),
             course_fee: parseFloat(course.course_fee || 0),
-            duration_days: parseInt(course.duration_days || 0)
+            duration_days: parseInt(course.duration_days || 0),
+            created_at: course.created_at ? new Date(course.created_at).toISOString() : null
         }));
 
         return {
@@ -118,7 +137,7 @@ export async function getStaticProps() {
         };
 
     } catch (error) {
-        console.error('Error in getStaticProps for home page:', error);
+        console.error('❌ Error in getStaticProps for home page:', error);
         
         return {
             props: {
@@ -130,7 +149,8 @@ export async function getStaticProps() {
                 },
                 featuredCourses: [],
                 lastUpdated: new Date().toISOString(),
-                hasError: true
+                hasError: true,
+                errorMessage: error.message
             },
             revalidate: 60
         };

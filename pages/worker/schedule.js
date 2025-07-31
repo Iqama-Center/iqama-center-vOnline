@@ -16,9 +16,19 @@ const WorkerSchedulePage = ({ user }) => {
 
     const loadSchedule = useCallback(async () => {
         try {
-            // Mock schedule data - replace with actual API call
-            const mockSchedule = generateMockSchedule();
-            setScheduleData(mockSchedule);
+            // Try to load real schedule data from API
+            try {
+                const response = await fetch('/api/worker/schedule');
+                if (response.ok) {
+                    const data = await response.json();
+                    setScheduleData(data);
+                } else {
+                    setScheduleData([]);
+                }
+            } catch (error) {
+                console.error('Failed to load schedule:', error);
+                setScheduleData([]);
+            }
         } catch (error) {
             console.error('Error loading schedule:', error);
         } finally {

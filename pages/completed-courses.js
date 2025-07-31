@@ -19,8 +19,12 @@ const CompletedCoursesPage = ({ user, completedCourses }) => {
                             <p>الدرجة النهائية: {course.grade}</p>
                         </div>
                         <div className="course-actions">
-                            <Link href={`/certificate/${course.certificate_code}`} legacyBehavior>
-                                <a className="btn-primary" target="_blank">عرض الشهادة</a>
+                            <Link 
+                                href={`/certificate/${course.certificate_code}`} 
+                                className="btn-primary" 
+                                target="_blank"
+                            >
+                                عرض الشهادة
                             </Link>
                         </div>
                     </div>

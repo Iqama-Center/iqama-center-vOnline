@@ -160,23 +160,40 @@ export const getServerSideProps = withAuth(async (context) => {
                     payment_pending_enrollments: parseInt(actualPaymentPendingEnrollments.rows[0].count)
                 };
                 
-                // Also add sample data for admin-specific sections
-                const recentUsers = [
-                    { id: 1, full_name: 'أحمد محمد علي', email: 'ahmed@example.com', role: 'student', created_at: new Date().toISOString() },
-                    { id: 2, full_name: 'فاطمة أحمد', email: 'fatima@example.com', role: 'teacher', created_at: new Date().toISOString() },
-                    { id: 3, full_name: 'محمد حسن', email: 'mohamed@example.com', role: 'student', created_at: new Date().toISOString() }
-                ];
+                // Get real recent users from database
+                const recentUsersRes = await pool.query(`
+                    SELECT id, full_name, email, role, created_at, details
+                    FROM users 
+                    ORDER BY created_at DESC 
+                    LIMIT 10;
+                `);
+                const recentUsers = JSON.parse(JSON.stringify(recentUsersRes.rows));
                 
-                const recentCourses = [
-                    { id: 1, name: 'دورة تعليم القرآن الكريم', status: 'active', created_at: new Date().toISOString() },
-                    { id: 2, name: 'دورة اللغة العربية', status: 'published', created_at: new Date().toISOString() }
-                ];
+                // Get real recent courses from database
+                const recentCoursesRes = await pool.query(`
+                    SELECT id, name, status, created_at, description
+                    FROM courses 
+                    ORDER BY created_at DESC 
+                    LIMIT 10;
+                `);
+                const recentCourses = JSON.parse(JSON.stringify(recentCoursesRes.rows));
                 
-                const pendingRequests = [
-                    { id: 1, user_name: 'علي أحمد', request_type: 'تعديل البيانات الشخصية', created_at: new Date().toISOString() },
-                    { id: 2, user_name: 'سارة محمد', request_type: 'تغيير كلمة المرور', created_at: new Date().toISOString() },
-                    { id: 3, user_name: 'خالد حسن', request_type: 'تحديث معلومات الاتصال', created_at: new Date().toISOString() }
-                ];
+                // Get real pending requests from database
+                let pendingRequests = [];
+                try {
+                    const pendingRequestsRes = await pool.query(`
+                        SELECT r.id, r.field_name, r.old_value, r.new_value, r.requested_at, u.full_name as user_name
+                        FROM user_edit_requests r
+                        JOIN users u ON r.user_id = u.id
+                        WHERE r.status = 'pending'
+                        ORDER BY r.requested_at DESC
+                        LIMIT 10;
+                    `);
+                    pendingRequests = JSON.parse(JSON.stringify(pendingRequestsRes.rows));
+                } catch (err) {
+                    console.log('Pending requests query failed, using empty array:', err.message);
+                    pendingRequests = [];
+                }
                 
                 const publicStats = publicStatsResult.rows[0] || {};
                 const recentActivities = recentActivitiesResult.rows || [];
@@ -502,84 +519,82 @@ export const getServerSideProps = withAuth(async (context) => {
             props.courses = [];
         }
 
-        // Worker statistics - using mock data for now since worker tables don't exist yet
-        props.stats = {
-            pending_tasks: Math.floor(Math.random() * 10) + 1,
-            completed_tasks: Math.floor(Math.random() * 50) + 10,
-            hours_this_week: Math.floor(Math.random() * 40) + 20,
-            performance_rating: (Math.random() * 2 + 3).toFixed(1) // 3.0 to 5.0
+        // Get real worker statistics from database
+        let workerStats = {
+            pending_tasks: 0,
+            completed_tasks: 0,
+            hours_this_week: 0,
+            performance_rating: 0
         };
+        
+        try {
+            // Try to get real worker tasks data
+            const pendingTasksRes = await pool.query(`
+                SELECT COUNT(*) as count FROM worker_tasks 
+                WHERE assigned_to = $1 AND status = 'pending'
+            `, [user.id]);
+            
+            const completedTasksRes = await pool.query(`
+                SELECT COUNT(*) as count FROM worker_tasks 
+                WHERE assigned_to = $1 AND status = 'completed'
+            `, [user.id]);
+            
+            workerStats.pending_tasks = parseInt(pendingTasksRes.rows[0].count);
+            workerStats.completed_tasks = parseInt(completedTasksRes.rows[0].count);
+        } catch (err) {
+            console.log('Worker tasks table not found, using defaults:', err.message);
+        }
+        
+        props.stats = workerStats;
 
-        // Mock assigned tasks
-        props.assignedTasks = [
-            {
-                id: 1,
-                title: 'مراجعة بيانات الطلاب الجدد',
-                description: 'مراجعة وتدقيق بيانات الطلاب المسجلين حديثاً والتأكد من اكتمال المعلومات',
-                priority: 'high',
-                status: 'pending',
-                due_date: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-                supervisor_name: 'أحمد محمد'
-            },
-            {
-                id: 2,
-                title: 'إعداد تقرير أسبوعي',
-                description: 'إعداد التقرير الأسبوعي لأنشطة القسم وإرساله للإدارة',
-                priority: 'medium',
-                status: 'in_progress',
-                due_date: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-                supervisor_name: 'فاطمة علي'
-            },
-            {
-                id: 3,
-                title: 'تحديث قاعدة البيانات',
-                description: 'تحديث معلومات الدورات والمدربين في قاعدة البيانات',
-                priority: 'low',
-                status: 'pending',
-                due_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-                supervisor_name: 'محمد سالم'
-            }
-        ];
+        // Get real assigned tasks from database
+        let assignedTasks = [];
+        try {
+            const tasksRes = await pool.query(`
+                SELECT wt.*, u.full_name as supervisor_name
+                FROM worker_tasks wt
+                LEFT JOIN users u ON wt.supervisor_id = u.id
+                WHERE wt.assigned_to = $1 
+                AND wt.status IN ('pending', 'in_progress')
+                ORDER BY wt.due_date ASC
+                LIMIT 10
+            `, [user.id]);
+            assignedTasks = JSON.parse(JSON.stringify(tasksRes.rows));
+        } catch (err) {
+            console.log('Worker tasks query failed, using empty array:', err.message);
+        }
+        props.assignedTasks = assignedTasks;
 
-        // Mock notifications
-        props.recentNotifications = [
-            {
-                id: 1,
-                title: 'مهمة جديدة',
-                message: 'تم تكليفك بمهمة جديدة: مراجعة بيانات الطلاب',
-                created_at: new Date().toISOString(),
-                read: false
-            },
-            {
-                id: 2,
-                title: 'اجتماع القسم',
-                message: 'اجتماع القسم الأسبوعي غداً الساعة 10 صباحاً',
-                created_at: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-                read: true
-            }
-        ];
+        // Get real notifications from database
+        let recentNotifications = [];
+        try {
+            const notificationsRes = await pool.query(`
+                SELECT id, title, message, created_at, read
+                FROM notifications
+                WHERE user_id = $1
+                ORDER BY created_at DESC
+                LIMIT 10
+            `, [user.id]);
+            recentNotifications = JSON.parse(JSON.stringify(notificationsRes.rows));
+        } catch (err) {
+            console.log('Notifications query failed, using empty array:', err.message);
+        }
+        props.recentNotifications = recentNotifications;
 
-        // Mock work schedule
-        props.workSchedule = [
-            {
-                id: 1,
-                time: '09:00',
-                title: 'اجتماع الفريق الصباحي',
-                location: 'قاعة الاجتماعات'
-            },
-            {
-                id: 2,
-                time: '11:00',
-                title: 'مراجعة البيانات',
-                location: 'مكتب البيانات'
-            },
-            {
-                id: 3,
-                time: '14:00',
-                title: 'تدريب على النظام الجديد',
-                location: 'معمل الحاسوب'
-            }
-        ];
+        // Get real work schedule from database
+        let workSchedule = [];
+        try {
+            const scheduleRes = await pool.query(`
+                SELECT id, time, title, location, date
+                FROM worker_schedule
+                WHERE worker_id = $1 AND date = CURRENT_DATE
+                ORDER BY time ASC
+            `, [user.id]);
+            workSchedule = JSON.parse(JSON.stringify(scheduleRes.rows));
+        } catch (err) {
+            console.log('Worker schedule query failed, using empty array:', err.message);
+        }
+        props.workSchedule = workSchedule;
     }
 
     return { props };

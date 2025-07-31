@@ -17,7 +17,7 @@ function Error({ statusCode }) {
             : 'حدث خطأ على المتصفح'}
         </h1>
         <p>نعتذر عن هذا الخلل، يرجى المحاولة مرة أخرى لاحقاً.</p>
-        <Link href="/dashboard" legacyBehavior><a style={{ color: '#0056b3', textDecoration: 'none' }}>العودة إلى لوحة التحكم</a></Link>
+        <Link href="/dashboard" style={{ color: '#0056b3', textDecoration: 'none' }}>العودة إلى لوحة التحكم</Link>
       </div>
     </>
   );

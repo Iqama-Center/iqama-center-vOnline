@@ -39,9 +39,19 @@ const WorkerAttendancePage = ({ user }) => {
 
     const loadAttendanceData = useCallback(async () => {
         try {
-            // Mock attendance data - replace with actual API call
-            const mockData = generateMockAttendance();
-            setAttendanceData(mockData);
+            // Try to load real attendance data from API
+            try {
+                const response = await fetch(`/api/worker/attendance?month=${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setAttendanceData(data);
+                } else {
+                    setAttendanceData([]);
+                }
+            } catch (error) {
+                console.error('Failed to load attendance data:', error);
+                setAttendanceData([]);
+            }
         } catch (error) {
             console.error('Error loading attendance:', error);
         } finally {

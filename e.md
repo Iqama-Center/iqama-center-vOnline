@@ -1,16 +1,7 @@
+ 1 Move التكلفة (cost) from المعلومات الأساسية to تكوين المشاركين                                                    │
+│  2 Add المالية لكل درجة (Financial settings for each level)                                                          │
+│  3 Add إضافة مستخدمين لكل درجة مسبقا (Pre-add users for each level)                                                  │
+│  4 Move المعلمون المكلفون from إعدادات النشر to تكوين المشاركين     
 
-✅ FIXED - Admin Dashboard Sub-Items Issue
+Check that المالية التي أضعها أثناء إنشاء الدورة is applied when the users apply for the course 
 
-في إجمالي الدورات
-✅ نشطة: Now shows real active courses count
-✅ منشورة: Now shows real published courses count  
-✅ مسودات: Now shows real draft courses count
-
-وفي إجمالي المستخدمين
-✅ طلاب نشطين: Now shows real active students count
-✅ معلمين: Now shows real teachers count
-✅ مديرين: Now shows real admins count
-
-✅ All other cards in admin dashboard now show real data
-
-STATUS: COMPLETED - All sub-items now display accurate database counts

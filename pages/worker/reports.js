@@ -23,32 +23,19 @@ const WorkerReportsPage = ({ user }) => {
 
     const loadReports = async () => {
         try {
-            // Mock data for now - replace with actual API call
-            const mockReports = [
-                {
-                    id: 1,
-                    report_type: 'daily',
-                    title: 'تقرير يومي - ' + new Date().toLocaleDateString('ar-EG'),
-                    content: 'تم إنجاز جميع المهام المطلوبة لهذا اليوم بنجاح...',
-                    report_date: new Date().toISOString().split('T')[0],
-                    status: 'submitted',
-                    created_at: new Date().toISOString(),
-                    submitted_at: new Date().toISOString(),
-                    priority: 'normal'
-                },
-                {
-                    id: 2,
-                    report_type: 'weekly',
-                    title: 'تقرير أسبوعي - الأسبوع الأول من الشهر',
-                    content: 'ملخص أنشطة الأسبوع وإنجازاته...',
-                    report_date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                    status: 'reviewed',
-                    created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-                    submitted_at: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-                    priority: 'high'
+            // Try to load real reports data from API
+            try {
+                const response = await fetch('/api/worker/reports');
+                if (response.ok) {
+                    const data = await response.json();
+                    setReports(data);
+                } else {
+                    setReports([]);
                 }
-            ];
-            setReports(mockReports);
+            } catch (error) {
+                console.error('Failed to load reports:', error);
+                setReports([]);
+            }
         } catch (error) {
             console.error('Error loading reports:', error);
         } finally {
