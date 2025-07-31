@@ -11,6 +11,14 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [message, setMessage] = useState('');
 
+    // Auto-clear message after 5 seconds
+    useEffect(() => {
+        if (message) {
+            const timer = setTimeout(() => setMessage(''), 5000);
+            return () => clearTimeout(timer);
+        }
+    }, [message]);
+
     const filteredCourses = courses.filter(course => {
         const matchesFilter = filter === 'all' || course.status === filter;
         const matchesSearch = course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -18,45 +26,57 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
         return matchesFilter && matchesSearch;
     });
 
+    const handleApiCall = async (url, options, successMessage, errorMessage) => {
+        try {
+            const response = await fetch(url, options);
+            if (response.ok) {
+                setMessage(successMessage);
+                return { success: true, data: await response.json() };
+            } else {
+                const result = await response.json();
+                setMessage(errorMessage + (result.message ? `: ${result.message}` : ''));
+                return { success: false };
+            }
+        } catch (err) {
+            console.error('API Error:', err);
+            setMessage('🚫 خطأ في الاتصال بالخادم');
+            return { success: false };
+        }
+    };
+
     const handleDeleteCourse = async (courseId) => {
         if (!confirm('هل أنت متأكد من حذف هذه الدورة؟ لن يمكن التراجع عن هذا الإجراء.')) {
             return;
         }
 
-        try {
-            const response = await fetch(`/api/courses/${courseId}`, {
-                method: 'DELETE'
-            });
+        const result = await handleApiCall(
+            `/api/courses/${courseId}`,
+            { method: 'DELETE' },
+            '✅ تم حذف الدورة بنجاح',
+            '⚠️ خطأ في حذف الدورة'
+        );
 
-            if (response.ok) {
-                setCourses(courses.filter(c => c.id !== courseId));
-                setMessage('✅ تم حذف الدورة بنجاح');
-            } else {
-                setMessage('⚠️ خطأ في حذف الدورة');
-            }
-        } catch (err) {
-            setMessage('🚫 خطأ في الاتصال بالخادم');
+        if (result.success) {
+            setCourses(courses.filter(c => c.id !== courseId));
         }
     };
 
     const handlePublishCourse = async (courseId) => {
-        try {
-            const response = await fetch(`/api/courses/publish`, {
+        const result = await handleApiCall(
+            `/api/courses/publish`,
+            {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ course_id: courseId })
-            });
+            },
+            '✅ تم نشر الدورة بنجاح',
+            '⚠️ خطأ في نشر الدورة'
+        );
 
-            if (response.ok) {
-                setCourses(courses.map(c => 
-                    c.id === courseId ? { ...c, status: 'published', is_published: true } : c
-                ));
-                setMessage('✅ تم نشر الدورة بنجاح');
-            } else {
-                setMessage('⚠️ خطأ في نشر الدورة');
-            }
-        } catch (err) {
-            setMessage('🚫 خطأ في الاتصال بالخادم');
+        if (result.success) {
+            setCourses(courses.map(c => 
+                c.id === courseId ? { ...c, status: 'published', is_published: true } : c
+            ));
         }
     };
 
@@ -65,42 +85,36 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
             return;
         }
 
-        try {
-            const response = await fetch(`/api/courses/${courseId}/launch`, {
-                method: 'POST'
-            });
+        const result = await handleApiCall(
+            `/api/courses/${courseId}/launch`,
+            { method: 'POST' },
+            '✅ تم بدء انطلاق الدورة بنجاح',
+            '⚠️ خطأ في بدء انطلاق الدورة'
+        );
 
-            if (response.ok) {
-                setCourses(courses.map(c => 
-                    c.id === courseId ? { ...c, status: 'active', is_launched: true } : c
-                ));
-                setMessage('✅ تم بدء انطلاق الدورة بنجاح');
-            } else {
-                setMessage('⚠️ خطأ في بدء انطلاق الدورة');
-            }
-        } catch (err) {
-            setMessage('🚫 خطأ في الاتصال بالخادم');
+        if (result.success) {
+            setCourses(courses.map(c => 
+                c.id === courseId ? { ...c, status: 'active', is_launched: true } : c
+            ));
         }
     };
 
     const handleStatusChange = async (courseId, newStatus) => {
-        try {
-            const response = await fetch(`/api/courses/${courseId}`, {
+        const result = await handleApiCall(
+            `/api/courses/${courseId}`,
+            {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus })
-            });
+            },
+            '✅ تم تحديث حالة الدورة بنجاح',
+            '⚠️ خطأ في تحديث حالة الدورة'
+        );
 
-            if (response.ok) {
-                setCourses(courses.map(c => 
-                    c.id === courseId ? { ...c, status: newStatus } : c
-                ));
-                setMessage('✅ تم تحديث حالة الدورة بنجاح');
-            } else {
-                setMessage('⚠️ خطأ في تحديث حالة الدورة');
-            }
-        } catch (err) {
-            setMessage('🚫 خطأ في الاتصال بالخادم');
+        if (result.success) {
+            setCourses(courses.map(c => 
+                c.id === courseId ? { ...c, status: newStatus } : c
+            ));
         }
     };
 
@@ -109,22 +123,17 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
             return;
         }
 
-        try {
-            const response = await fetch(`/api/courses/${courseId}/unpublish`, {
-                method: 'POST'
-            });
+        const result = await handleApiCall(
+            `/api/courses/${courseId}/unpublish`,
+            { method: 'POST' },
+            '✅ تم إلغاء نشر الدورة بنجاح',
+            '⚠️ خطأ في إلغاء النشر'
+        );
 
-            if (response.ok) {
-                setCourses(courses.map(c => 
-                    c.id === courseId ? { ...c, status: 'draft', is_published: false } : c
-                ));
-                setMessage('✅ تم إلغاء نشر الدورة بنجاح');
-            } else {
-                const result = await response.json();
-                setMessage('⚠️ ' + (result.message || 'خطأ في إلغاء النشر'));
-            }
-        } catch (err) {
-            setMessage('🚫 خطأ في الاتصال بالخادم');
+        if (result.success) {
+            setCourses(courses.map(c => 
+                c.id === courseId ? { ...c, status: 'draft', is_published: false } : c
+            ));
         }
     };
 
@@ -181,17 +190,31 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                 .btn { 
                     padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; 
                     font-size: 0.85rem; text-decoration: none; display: inline-block; text-align: center;
-                    font-family: var(--font-tajawal); font-weight: bold;
+                    font-family: var(--font-tajawal); font-weight: bold; transition: all 0.2s ease;
                 }
+                .btn:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); }
                 .btn-primary { background: var(--primary-color); color: white; }
+                .btn-primary:hover { background: color-mix(in srgb, var(--primary-color) 85%, black); }
                 .btn-success { background: var(--success-color); color: white; }
+                .btn-success:hover { background: color-mix(in srgb, var(--success-color) 85%, black); }
                 .btn-warning { background: var(--warning-color); color: white; }
+                .btn-warning:hover { background: color-mix(in srgb, var(--warning-color) 85%, black); }
                 .btn-danger { background: var(--danger-color); color: white; }
+                .btn-danger:hover { background: color-mix(in srgb, var(--danger-color) 85%, black); }
                 .btn-info { background: var(--info-color); color: white; }
+                .btn-info:hover { background: color-mix(in srgb, var(--info-color) 85%, black); }
                 .btn-secondary { background: #6c757d; color: white; }
+                .btn-secondary:hover { background: #5a6268; }
+                .btn-publish { background: #28a745; color: white; }
+                .btn-publish:hover { background: #218838; box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3); }
                 .message-bar { 
                     padding: 10px; text-align: center; border-radius: 5px; margin-bottom: 15px;
                     background: #d4edda; color: #155724; border: 1px solid #c3e6cb;
+                    animation: fadeIn 0.3s ease-in;
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; transform: translateY(-10px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
                 .stats-summary { 
                     display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); 
@@ -207,6 +230,10 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                     background: #f8f9fa; padding: 10px; border-radius: 5px; margin: 10px 0;
                     font-size: 0.9rem;
                 }
+                .empty-state {
+                    text-align: center; padding: 40px; color: #6c757d;
+                }
+                .empty-state-icon { margin-bottom: 20px; }
             `}</style>
             
             <div className="management-header">
@@ -216,7 +243,7 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                 </Link>
             </div>
 
-            {message && <div className="message-bar">{message}</div>}
+            {message && <div className="message-bar" role="alert">{message}</div>}
 
             <div className="stats-summary">
                 <div className="stat-card">
@@ -244,12 +271,14 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                     placeholder="🔍 البحث في الدورات..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    aria-label="البحث في الدورات"
                 />
                 
                 <select 
                     className="filter-select"
                     value={filter}
                     onChange={(e) => setFilter(e.target.value)}
+                    aria-label="تصفية الدورات حسب الحالة"
                 >
                     <option value="all">جميع الدورات</option>
                     <option value="draft">مسودات</option>
@@ -260,7 +289,7 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
             </div>
 
             <div className="courses-grid">
-                {Array.isArray(filteredCourses) ? filteredCourses.map(course => (
+                {filteredCourses.map(course => (
                     <div key={course.id} className="course-card">
                         <div className="course-header">
                             <h3 className="course-title">{course.name}</h3>
@@ -315,33 +344,8 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                             {course.status === 'draft' && (
                                 <button 
                                     onClick={() => handlePublishCourse(course.id)}
-                                    style={{
-                                        backgroundColor: '#28a745',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '8px 16px',
-                                        borderRadius: '5px',
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem',
-                                        fontWeight: '600',
-                                        fontFamily: 'Tajawal, Arial, sans-serif',
-                                        transition: 'all 0.2s ease',
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        textDecoration: 'none',
-                                        whiteSpace: 'nowrap'
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.target.style.backgroundColor = '#218838';
-                                        e.target.style.transform = 'translateY(-1px)';
-                                        e.target.style.boxShadow = '0 2px 8px rgba(40, 167, 69, 0.3)';
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.target.style.backgroundColor = '#28a745';
-                                        e.target.style.transform = 'translateY(0)';
-                                        e.target.style.boxShadow = 'none';
-                                    }}
+                                    className="btn btn-publish"
+                                    aria-label="نشر الدورة"
                                 >
                                     📢 نشر
                                 </button>
@@ -352,12 +356,14 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                                     <button 
                                         className="btn btn-warning"
                                         onClick={() => handleLaunchCourse(course.id)}
+                                        aria-label="بدء انطلاق الدورة"
                                     >
                                         🚀 انطلاق
                                     </button>
                                     <button 
                                         className="btn btn-secondary"
                                         onClick={() => handleUnpublishCourse(course.id)}
+                                        aria-label="إلغاء نشر الدورة"
                                     >
                                         📝 إلغاء النشر
                                     </button>
@@ -368,6 +374,7 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                                 <button 
                                     className="btn btn-info"
                                     onClick={() => handleStatusChange(course.id, 'completed')}
+                                    aria-label="وضع علامة مكتملة على الدورة"
                                 >
                                     ✅ إكمال
                                 </button>
@@ -376,17 +383,18 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                             <button 
                                 className="btn btn-danger"
                                 onClick={() => handleDeleteCourse(course.id)}
+                                aria-label="حذف الدورة"
                             >
                                 🗑️ حذف
                             </button>
                         </div>
                     </div>
-                )) : []}
+                ))}
             </div>
 
-            {(!Array.isArray(filteredCourses) || filteredCourses.length === 0) && (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#6c757d' }}>
-                    <i className="fas fa-search fa-3x" style={{ marginBottom: '20px' }}></i>
+            {filteredCourses.length === 0 && (
+                <div className="empty-state">
+                    <i className="fas fa-search fa-3x empty-state-icon"></i>
                     <h3>لا توجد دورات تطابق البحث</h3>
                     <p>جرب تغيير مصطلحات البحث أو الفلتر</p>
                 </div>
