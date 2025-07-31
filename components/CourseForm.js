@@ -7,9 +7,11 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
     
     // Zustand store for user management
     const { 
+        users,
         teachers, 
         loading, 
         error, 
+        fetchUsers,
         fetchTeachers, 
         getTeachersFromUsers 
     } = useUserStore();
@@ -42,36 +44,45 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
     });
     const router = useRouter();
     
-    // Get available users (teachers) from Zustand store
+    // Get available users from Zustand store (all users, not just teachers)
     const teacherUsers = getTeachersFromUsers(allUsers);
     
-    // Define availableUsers for use throughout the component
+    // Define availableUsers for use throughout the component - prioritize all users
     const availableUsers = allUsers.length > 0 ? allUsers : 
+                          users.length > 0 ? users : 
                           teachers.length > 0 ? teachers : 
                           teacherUsers.length > 0 ? teacherUsers : [];
 
-    // Load teachers when component mounts
+    // Load all users when component mounts
     useEffect(() => {
-        console.log('CourseForm.js loaded - fetching teachers...');
+        console.log('CourseForm.js loaded - fetching all users...');
         
-        // Fetch teachers from API using Zustand store
-        fetchTeachers()
-            .then((teachersData) => {
-                console.log('Teachers loaded in CourseForm:', teachersData);
-                console.log('Number of teachers:', teachersData.length);
-                teachersData.forEach((teacher, index) => {
-                    console.log(`Teacher ${index + 1}:`, {
-                        id: teacher.id,
-                        name: teacher.full_name,
-                        email: teacher.email,
-                        role: teacher.role
+        // Fetch all users from API using Zustand store
+        fetchUsers()
+            .then((usersData) => {
+                console.log('All users loaded in CourseForm:', usersData);
+                console.log('Number of users:', usersData.length);
+                
+                // Log users by role for debugging
+                const usersByRole = usersData.reduce((acc, user) => {
+                    acc[user.role] = (acc[user.role] || 0) + 1;
+                    return acc;
+                }, {});
+                console.log('Users by role:', usersByRole);
+                
+                usersData.forEach((user, index) => {
+                    console.log(`User ${index + 1}:`, {
+                        id: user.id,
+                        name: user.full_name,
+                        email: user.email,
+                        role: user.role
                     });
                 });
             })
             .catch((error) => {
-                console.error('Failed to load teachers in CourseForm:', error);
+                console.error('Failed to load users in CourseForm:', error);
             });
-    }, [fetchTeachers]);
+    }, [fetchUsers]);
 
     useEffect(() => {
         if (initialCourse) {
@@ -252,14 +263,21 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         setCurrentStep(prev => Math.max(prev - 1, 1));
     };
 
-    // Get teachers from Zustand store, fallback to props if store is empty
-    // teacherUsers is already defined at the top of the component
+    // Get users from Zustand store, fallback to props if store is empty
+    // availableUsers is already defined at the top of the component
     
-    // Log current teachers state
-    console.log('Current teachers in CourseForm render:', {
-        fromStore: teachers.length,
-        fromProps: allUsers.filter(u => u.role === 'teacher').length,
-        using: teacherUsers.length,
+    // Log current users state for debugging
+    console.log('Current users in CourseForm render:', {
+        allUsersFromStore: users.length,
+        teachersFromStore: teachers.length,
+        allUsersFromProps: allUsers.length,
+        teachersFromProps: allUsers.filter(u => u.role === 'teacher').length,
+        studentsFromProps: allUsers.filter(u => u.role === 'student').length,
+        usingAvailableUsers: availableUsers.length,
+        availableUsersByRole: availableUsers.reduce((acc, user) => {
+            acc[user.role] = (acc[user.role] || 0) + 1;
+            return acc;
+        }, {}),
         loading,
         error
     });
@@ -1028,9 +1046,32 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                                             background: '#ffffff',
                                             padding: '10px'
                                         }}>
+                                            <p style={{
+                                                fontSize: '0.85rem',
+                                                color: '#64748b',
+                                                marginBottom: '10px',
+                                                fontFamily: 'Tajawal, Cairo, sans-serif',
+                                                textAlign: 'center',
+                                                fontStyle: 'italic'
+                                            }}>
+                                                يتم النظر للأصناف المرادة الموجودة في قاعدة البيانات (في neon.tech)
+                                            </p>
                                             {availableUsers.filter(user => 
                                                 config.roles.includes(user.role)
-                                            ).map(user => (
+                                            ).length === 0 ? (
+                                                <div style={{
+                                                    textAlign: 'center',
+                                                    padding: '20px',
+                                                    color: '#64748b',
+                                                    fontSize: '0.9rem',
+                                                    fontFamily: 'Tajawal, Cairo, sans-serif'
+                                                }}>
+                                                    لا توجد مستخدمين متاحين للأدوار المحددة
+                                                </div>
+                                            ) : (
+                                                availableUsers.filter(user => 
+                                                    config.roles.includes(user.role)
+                                                ).map(user => (
                                                 <label key={user.id} style={{
                                                     display: 'flex',
                                                     alignItems: 'center',
@@ -1076,7 +1117,8 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                                                         ({user.role})
                                                     </span>
                                                 </label>
-                                            ))}
+                                               ))
+                                            )}
                                         </div>
                                     </div>
                                 )}
@@ -1085,127 +1127,6 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                     </div>
                 ))}
                 
-                {/* المعلمون المكلفون - moved from إعدادات النشر */}
-                <div style={{
-                    background: 'white',
-                    padding: '25px',
-                    borderRadius: '16px',
-                    marginTop: '25px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                    border: '2px solid #e2e8f0'
-                }}>
-                    <h4 style={{
-                        margin: '0 0 20px 0',
-                        color: '#1e293b',
-                        fontSize: '1.3rem',
-                        fontWeight: 700,
-                        fontFamily: 'Tajawal, Cairo, sans-serif',
-                        textAlign: 'center',
-                        padding: '15px',
-                        background: 'linear-gradient(135deg, #fef3c7 0%, #ffffff 100%)',
-                        borderRadius: '12px',
-                        border: '2px solid #f59e0b'
-                    }}>👨‍🏫 المعلمون المكلفون</h4>
-                    
-                    {availableUsers.filter(user => user.role === 'teacher').length > 0 ? (
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                            gap: '12px',
-                            maxHeight: '300px',
-                            overflowY: 'auto',
-                            padding: '10px',
-                            border: '2px solid #f1f5f9',
-                            borderRadius: '12px',
-                            background: '#fafbfc'
-                        }}>
-                            {availableUsers.filter(user => user.role === 'teacher').map(teacher => (
-                                <label key={teacher.id} style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    cursor: 'pointer',
-                                    padding: '10px 12px',
-                                    borderRadius: '8px',
-                                    transition: 'all 0.2s ease',
-                                    fontSize: '1rem',
-                                    fontFamily: 'Tajawal, Cairo, sans-serif',
-                                    backgroundColor: (course.details?.teachers || []).includes(teacher.id.toString()) 
-                                        ? '#dbeafe' 
-                                        : 'transparent',
-                                    border: (course.details?.teachers || []).includes(teacher.id.toString()) 
-                                        ? '1px solid #3b82f6' 
-                                        : '1px solid transparent',
-                                    fontWeight: (course.details?.teachers || []).includes(teacher.id.toString()) 
-                                        ? 600 
-                                        : 400
-                                }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={(course.details?.teachers || []).includes(teacher.id.toString())}
-                                        onChange={(e) => {
-                                            const currentTeachers = course.details?.teachers || [];
-                                            const teacherId = teacher.id.toString();
-                                            const newTeachers = e.target.checked
-                                                ? [...currentTeachers, teacherId]
-                                                : currentTeachers.filter(id => id !== teacherId);
-                                            
-                                            setCourse(prev => ({
-                                                ...prev,
-                                                details: { 
-                                                    ...prev.details, 
-                                                    teachers: newTeachers 
-                                                }
-                                            }));
-                                        }}
-                                        style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            cursor: 'pointer',
-                                            accentColor: '#3b82f6'
-                                        }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px'
-                                        }}>
-                                            <span style={{ fontSize: '1.1rem' }}>👨‍🏫</span>
-                                            <span style={{
-                                                color: '#1e293b',
-                                                fontWeight: 'inherit'
-                                            }}>{teacher.full_name}</span>
-                                        </div>
-                                        {teacher.email && (
-                                            <div style={{
-                                                fontSize: '0.85rem',
-                                                color: '#64748b',
-                                                marginTop: '2px',
-                                                marginRight: '24px'
-                                            }}>
-                                                📧 {teacher.email}
-                                            </div>
-                                        )}
-                                    </div>
-                                </label>
-                            ))}
-                        </div>
-                    ) : (
-                        <div style={{
-                            padding: '20px',
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontSize: '1rem',
-                            fontFamily: 'Tajawal, Cairo, sans-serif',
-                            border: '2px dashed #cbd5e0',
-                            borderRadius: '12px',
-                            background: '#f8fafc'
-                        }}>
-                            ⚠️ لا يوجد معلمون متاحون في النظام
-                        </div>
-                    )}
-                </div>
             </div>
         </div>
     );
@@ -1224,170 +1145,6 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
             }}>🚀 إعدادات النشر والانطلاق</h3>
             
             <div style={{ padding: '30px', background: '#fafbfc' }}>
-                <div style={{
-                    background: 'white',
-                    padding: '25px',
-                    borderRadius: '16px',
-                    marginBottom: '25px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-                    border: '2px solid #e2e8f0'
-                }}>
-                    <label style={{
-                        marginBottom: '15px',
-                        fontWeight: 700,
-                        color: '#1e293b',
-                        fontSize: '1.1rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        fontFamily: 'Tajawal, Cairo, sans-serif'
-                    }}>👨‍🏫 المعلمون المكلفون</label>
-                    
-                    {loading ? (
-                        <div style={{
-                            padding: '20px',
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontSize: '1rem',
-                            fontFamily: 'Tajawal, Cairo, sans-serif',
-                            border: '2px dashed #cbd5e0',
-                            borderRadius: '12px',
-                            background: '#f8fafc'
-                        }}>
-                            🔄 جاري تحميل المعلمين...
-                        </div>
-                    ) : error ? (
-                        <div style={{
-                            padding: '20px',
-                            textAlign: 'center',
-                            color: '#dc2626',
-                            fontSize: '1rem',
-                            fontFamily: 'Tajawal, Cairo, sans-serif',
-                            border: '2px dashed #fca5a5',
-                            borderRadius: '12px',
-                            background: '#fef2f2'
-                        }}>
-                            ❌ خطأ في تحميل المعلمين: {error}
-                        </div>
-                    ) : teacherUsers.length > 0 ? (
-                        <div style={{
-                            padding: '16px 20px',
-                            border: '3px solid #3b82f6',
-                            borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #eff6ff 0%, #ffffff 100%)',
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.05)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '10px',
-                            maxHeight: '200px',
-                            overflowY: 'auto'
-                        }}>
-                            <div style={{
-                                fontSize: '0.9rem',
-                                color: '#64748b',
-                                marginBottom: '8px',
-                                fontFamily: 'Tajawal, Cairo, sans-serif'
-                            }}>
-                                📊 إجمالي المعلمين المتاحين: {teacherUsers.length}
-                            </div>
-                            {teacherUsers.map(teacher => (
-                                <label key={teacher.id} style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    cursor: 'pointer',
-                                    padding: '10px 12px',
-                                    borderRadius: '8px',
-                                    transition: 'all 0.2s ease',
-                                    fontSize: '1rem',
-                                    fontFamily: 'Tajawal, Cairo, sans-serif',
-                                    backgroundColor: (course.details?.teachers || []).includes(teacher.id.toString()) 
-                                        ? '#dbeafe' 
-                                        : 'transparent',
-                                    border: (course.details?.teachers || []).includes(teacher.id.toString()) 
-                                        ? '1px solid #3b82f6' 
-                                        : '1px solid transparent',
-                                    fontWeight: (course.details?.teachers || []).includes(teacher.id.toString()) 
-                                        ? 600 
-                                        : 400
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!(course.details?.teachers || []).includes(teacher.id.toString())) {
-                                        e.target.style.backgroundColor = '#f1f5f9';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!(course.details?.teachers || []).includes(teacher.id.toString())) {
-                                        e.target.style.backgroundColor = 'transparent';
-                                    }
-                                }}
-                                >
-                                    <input
-                                        type="checkbox"
-                                        checked={(course.details?.teachers || []).includes(teacher.id.toString())}
-                                        onChange={(e) => {
-                                            const currentTeachers = course.details?.teachers || [];
-                                            const teacherId = teacher.id.toString();
-                                            const newTeachers = e.target.checked
-                                                ? [...currentTeachers, teacherId]
-                                                : currentTeachers.filter(id => id !== teacherId);
-                                            
-                                            setCourse(prev => ({
-                                                ...prev,
-                                                details: { 
-                                                    ...prev.details, 
-                                                    teachers: newTeachers 
-                                                }
-                                            }));
-                                        }}
-                                        style={{
-                                            width: '16px',
-                                            height: '16px',
-                                            cursor: 'pointer',
-                                            accentColor: '#3b82f6'
-                                        }}
-                                    />
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '8px'
-                                        }}>
-                                            <span style={{ fontSize: '1.1rem' }}>👨‍🏫</span>
-                                            <span style={{
-                                                color: '#1e293b',
-                                                fontWeight: 'inherit'
-                                            }}>{teacher.full_name}</span>
-                                        </div>
-                                        {teacher.email && (
-                                            <div style={{
-                                                fontSize: '0.85rem',
-                                                color: '#64748b',
-                                                marginTop: '2px',
-                                                marginRight: '24px'
-                                            }}>
-                                                📧 {teacher.email}
-                                            </div>
-                                        )}
-                                    </div>
-                                </label>
-                            ))}
-                        </div>
-                    ) : (
-                        <div style={{
-                            padding: '20px',
-                            textAlign: 'center',
-                            color: '#64748b',
-                            fontSize: '1rem',
-                            fontFamily: 'Tajawal, Cairo, sans-serif',
-                            border: '2px dashed #cbd5e0',
-                            borderRadius: '12px',
-                            background: '#f8fafc'
-                        }}>
-                            ⚠️ لا يوجد معلمون متاحون في النظام
-                        </div>
-                    )}
-                </div>
 
             <div style={{
                 background: 'white',
