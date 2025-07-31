@@ -81,14 +81,63 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: `هذه الدورة مخصصة لـ${genderText} فقط` });
         }
 
+        // Determine financial requirements based on participant config and user role
+        let financialConfig = null;
+        let enrollmentStatus = 'pending_payment';
+        
+        // Parse participant config to find matching level for user role
+        if (course.participant_config) {
+            const participantConfig = typeof course.participant_config === 'string' 
+                ? JSON.parse(course.participant_config) 
+                : course.participant_config;
+            
+            // Find the level that matches user's role
+            for (const [levelKey, config] of Object.entries(participantConfig)) {
+                if (config.roles && config.roles.includes(user.role)) {
+                    financialConfig = config.financial;
+                    break;
+                }
+            }
+        }
+
+        // Determine enrollment status and payment requirements
+        if (financialConfig && financialConfig.type !== 'none') {
+            if (financialConfig.type === 'pay') {
+                enrollmentStatus = 'pending_payment';
+            } else if (financialConfig.type === 'receive') {
+                enrollmentStatus = 'active'; // No payment required, they receive money
+            }
+        } else {
+            // Fallback to course-level pricing
+            if (courseDetails.price && courseDetails.price > 0) {
+                enrollmentStatus = 'pending_payment';
+            } else {
+                enrollmentStatus = 'active'; // Free course
+            }
+        }
+
         // Create enrollment
         const enrollment = await pool.query(
             'INSERT INTO enrollments (user_id, course_id, status) VALUES ($1, $2, $3) RETURNING *',
-            [decoded.id, courseId, 'pending_payment']
+            [decoded.id, courseId, enrollmentStatus]
         );
 
-        // Create payment record if course has fees
-        if (courseDetails.price && courseDetails.price > 0) {
+        // Create payment record if user needs to pay
+        if (enrollmentStatus === 'pending_payment') {
+            let amount, currency, paymentNotes;
+            
+            if (financialConfig && financialConfig.type === 'pay') {
+                // Use participant-level financial config
+                amount = parseFloat(financialConfig.amount);
+                currency = financialConfig.currency || 'EGP';
+                paymentNotes = `رسوم التسجيل في دورة ${course.name} (${user.role})`;
+            } else {
+                // Fallback to course-level pricing
+                amount = courseDetails.price;
+                currency = courseDetails.currency || 'SAR';
+                paymentNotes = `رسوم التسجيل في دورة ${course.name}`;
+            }
+
             const dueDate = new Date();
             dueDate.setDate(dueDate.getDate() + 7); // Payment due in 7 days
 
@@ -97,19 +146,38 @@ export default async function handler(req, res) {
                  VALUES ($1, $2, $3, $4, 'due', $5)`,
                 [
                     enrollment.rows[0].id,
-                    courseDetails.price,
-                    courseDetails.currency || 'SAR',
+                    amount,
+                    currency,
                     dueDate,
-                    `رسوم التسجيل في دورة ${course.name}`
+                    paymentNotes
                 ]
             );
 
             // Send payment notification
             await NotificationService.createPaymentReminder(
                 [decoded.id],
-                courseDetails.price,
-                courseDetails.currency || 'SAR',
+                amount,
+                currency,
                 dueDate
+            );
+        }
+
+        // Create reward record if user receives payment
+        if (financialConfig && financialConfig.type === 'receive') {
+            const amount = parseFloat(financialConfig.amount);
+            const currency = financialConfig.currency || 'EGP';
+            
+            // Create a positive payment record (reward/salary)
+            await pool.query(
+                `INSERT INTO payments (enrollment_id, amount, currency, due_date, status, notes) 
+                 VALUES ($1, $2, $3, $4, 'paid', $5)`,
+                [
+                    enrollment.rows[0].id,
+                    amount,
+                    currency,
+                    new Date(course.start_date),
+                    `مكافأة المشاركة في دورة ${course.name} (${user.role}) - REWARD`
+                ]
             );
         }
 
@@ -136,11 +204,29 @@ export default async function handler(req, res) {
             );
         }
 
+        // Determine success message based on financial configuration
+        let successMessage;
+        if (enrollmentStatus === 'pending_payment') {
+            if (financialConfig && financialConfig.type === 'pay') {
+                successMessage = `تم التسجيل بنجاح! يرجى دفع رسوم ${financialConfig.amount} ${financialConfig.currency} خلال 7 أيام لتأكيد التسجيل`;
+            } else {
+                successMessage = 'تم التسجيل بنجاح! يرجى دفع الرسوم خلال 7 أيام لتأكيد التسجيل';
+            }
+        } else if (financialConfig && financialConfig.type === 'receive') {
+            successMessage = `تم التسجيل بنجاح! ستحصل على مكافأة قدرها ${financialConfig.amount} ${financialConfig.currency} عند بدء الدورة`;
+        } else {
+            successMessage = 'تم التسجيل بنجاح في الدورة';
+        }
+
         res.status(201).json({
-            message: courseDetails.price > 0 
-                ? 'تم التسجيل بنجاح! يرجى دفع الرسوم خلال 7 أيام لتأكيد التسجيل'
-                : 'تم التسجيل بنجاح في الدورة',
-            enrollment: enrollment.rows[0]
+            message: successMessage,
+            enrollment: enrollment.rows[0],
+            financialInfo: financialConfig ? {
+                type: financialConfig.type,
+                amount: financialConfig.amount,
+                currency: financialConfig.currency,
+                timing: financialConfig.timing
+            } : null
         });
 
     } catch (err) {

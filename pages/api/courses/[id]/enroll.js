@@ -32,38 +32,121 @@ export default async function handler(req, res) {
             }
         }
 
-        // Determine enrollment status based on user role and course context
+        // Get user details for financial configuration
+        const userResult = await pool.query('SELECT role FROM users WHERE id = $1', [userId]);
+        const userRole = userResult.rows[0]?.role;
+
+        // Determine financial requirements based on participant config and user role
+        let financialConfig = null;
         let enrollmentStatus = 'pending_payment';
         
-        // Workers get pending_approval unless they're joining as students
-        if (decoded.role === 'worker') {
-            // Check if this is a worker development/training course
-            const isWorkerTraining = course.details?.target_roles?.includes('worker') || 
-                                   course.details?.course_type === 'training' ||
-                                   course.details?.is_worker_development === true;
+        // Parse participant config to find matching level for user role
+        if (course.participant_config) {
+            const participantConfig = typeof course.participant_config === 'string' 
+                ? JSON.parse(course.participant_config) 
+                : course.participant_config;
             
-            if (isWorkerTraining) {
-                enrollmentStatus = 'pending_approval';
+            // Find the level that matches user's role
+            for (const [levelKey, config] of Object.entries(participantConfig)) {
+                if (config.roles && config.roles.includes(userRole)) {
+                    financialConfig = config.financial;
+                    break;
+                }
             }
-            // If worker joins a regular student course, use pending_payment
+        }
+
+        // Determine enrollment status based on financial config and user role
+        if (financialConfig && financialConfig.type !== 'none') {
+            if (financialConfig.type === 'pay') {
+                enrollmentStatus = 'pending_payment';
+            } else if (financialConfig.type === 'receive') {
+                enrollmentStatus = 'active'; // No payment required, they receive money
+            }
+        } else {
+            // Workers get pending_approval for training courses
+            if (decoded.role === 'worker') {
+                const isWorkerTraining = course.details?.target_roles?.includes('worker') || 
+                                       course.details?.course_type === 'training' ||
+                                       course.details?.is_worker_development === true;
+                
+                if (isWorkerTraining) {
+                    enrollmentStatus = 'pending_approval';
+                }
+            } else {
+                // Fallback to course-level pricing
+                const cost = course.details?.cost || 0;
+                if (cost > 0) {
+                    enrollmentStatus = 'pending_payment';
+                } else {
+                    enrollmentStatus = 'active'; // Free course
+                }
+            }
         }
 
         const enrollment = await pool.query(`INSERT INTO enrollments (user_id, course_id, status) VALUES ($1, $2, $3) RETURNING *`, [userId, courseId, enrollmentStatus]);
         
-        // Only create payment record for pending_payment enrollments
+        // Create payment record if user needs to pay
         if (enrollmentStatus === 'pending_payment') {
-            const cost = course.details?.cost || 300;
-            const currency = course.details?.currency || 'EGP';
-            await pool.query(`INSERT INTO payments (enrollment_id, amount, currency, due_date, status) VALUES ($1, $2, $3, NOW() + INTERVAL '7 day', 'due')`, [enrollment.rows[0].id, cost, currency]);
+            let amount, currency;
+            
+            if (financialConfig && financialConfig.type === 'pay') {
+                // Use participant-level financial config
+                amount = parseFloat(financialConfig.amount);
+                currency = financialConfig.currency || 'EGP';
+            } else {
+                // Fallback to course-level pricing
+                amount = course.details?.cost || 300;
+                currency = course.details?.currency || 'EGP';
+            }
+            
+            await pool.query(`INSERT INTO payments (enrollment_id, amount, currency, due_date, status) VALUES ($1, $2, $3, NOW() + INTERVAL '7 day', 'due')`, [enrollment.rows[0].id, amount, currency]);
+        }
+
+        // Create reward record if user receives payment
+        if (financialConfig && financialConfig.type === 'receive') {
+            const amount = parseFloat(financialConfig.amount);
+            const currency = financialConfig.currency || 'EGP';
+            
+            // Create a positive payment record (reward/salary)
+            await pool.query(
+                `INSERT INTO payments (enrollment_id, amount, currency, due_date, status, notes) 
+                 VALUES ($1, $2, $3, NOW() + INTERVAL '7 day', 'paid', $4)`,
+                [
+                    enrollment.rows[0].id,
+                    amount,
+                    currency,
+                    `مكافأة المشاركة في الدورة (${userRole}) - REWARD`
+                ]
+            );
         }
         
         // In a real app, you would also trigger a notification here.
         
-        const successMessage = enrollmentStatus === 'pending_approval' 
-            ? 'تم التقديم بنجاح، بانتظار موافقة الإدارة.' 
-            : 'تم التقديم بنجاح، بانتظار سداد الرسوم.';
+        // Determine success message based on enrollment status and financial configuration
+        let successMessage;
+        if (enrollmentStatus === 'pending_approval') {
+            successMessage = 'تم التقديم بنجاح، بانتظار موافقة الإدارة.';
+        } else if (enrollmentStatus === 'pending_payment') {
+            if (financialConfig && financialConfig.type === 'pay') {
+                successMessage = `تم التقديم بنجاح، يرجى دفع رسوم ${financialConfig.amount} ${financialConfig.currency} خلال 7 أيام.`;
+            } else {
+                successMessage = 'تم التقديم بنجاح، بانتظار سداد الرسوم.';
+            }
+        } else if (financialConfig && financialConfig.type === 'receive') {
+            successMessage = `تم التقديم بنجاح! ستحصل على مكافأة قدرها ${financialConfig.amount} ${financialConfig.currency}.`;
+        } else {
+            successMessage = 'تم التقديم بنجاح في الدورة.';
+        }
         
-        res.status(201).json({ message: successMessage });
+        res.status(201).json({ 
+            message: successMessage,
+            financialInfo: financialConfig ? {
+                type: financialConfig.type,
+                amount: financialConfig.amount,
+                currency: financialConfig.currency,
+                timing: financialConfig.timing
+            } : null
+        });
     } catch (err) {
         if (err.code === '23505') { return res.status(409).json({ message: 'أنت مسجل بالفعل في هذه الدورة.' }); }
         console.error("Enrollment error:", err);
