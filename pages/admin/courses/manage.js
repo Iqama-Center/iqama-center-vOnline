@@ -177,10 +177,11 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                 .meta-item { display: flex; flex-direction: column; }
                 .meta-label { font-size: 0.8rem; color: #6c757d; margin-bottom: 2px; }
                 .meta-value { font-weight: 500; }
-                .course-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px; }
+                .course-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 15px;}
                 .btn { 
                     padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; 
                     font-size: 0.85rem; text-decoration: none; display: inline-block; text-align: center;
+                    font-family: var(--font-tajawal); font-weight: bold;
                 }
                 .btn-primary { background: var(--primary-color); color: white; }
                 .btn-success { background: var(--success-color); color: white; }
