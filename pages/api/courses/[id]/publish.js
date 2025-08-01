@@ -47,43 +47,72 @@ export default async function handler(req, res) {
                 console.log('course_participant_levels table not found, using participant_config from course');
             }
 
-            // Create notifications for level 2 participants (teachers/trainers)
-            let targetRoles = ['teacher']; // Default roles
+            // Create notifications based on participant configuration hierarchy
+            // According to cReq.md: Level 2 (teachers/trainers) get notified first
+            let allTargetRoles = [];
+            let level2Roles = ['teacher']; // Default level 2 roles
+            let level1Roles = ['admin', 'head']; // Default level 1 roles
             
             if (participantLevels.rows.length > 0) {
+                const level1Config = participantLevels.rows.find(level => level.level_number === 1);
                 const level2Config = participantLevels.rows.find(level => level.level_number === 2);
+                
+                if (level1Config && level1Config.target_roles) {
+                    level1Roles = level1Config.target_roles;
+                }
                 if (level2Config && level2Config.target_roles) {
-                    targetRoles = level2Config.target_roles;
+                    level2Roles = level2Config.target_roles;
                 }
             } else if (course.participant_config) {
                 // Use participant_config from course if available
                 try {
                     const config = typeof course.participant_config === 'string' ? 
                         JSON.parse(course.participant_config) : course.participant_config;
+                    
+                    if (config.level_1 && config.level_1.roles) {
+                        level1Roles = config.level_1.roles;
+                    }
                     if (config.level_2 && config.level_2.roles) {
-                        targetRoles = config.level_2.roles;
+                        level2Roles = config.level_2.roles;
                     }
                 } catch (parseError) {
                     console.log('Error parsing participant_config, using default roles');
                 }
             }
 
+            // Combine all target roles for initial notification
+            allTargetRoles = [...new Set([...level1Roles, ...level2Roles])];
+
             // Create notifications for target users (only if notifications table exists)
             try {
                 const targetUsers = await pool.query(
-                    'SELECT id FROM users WHERE role = ANY($1)',
-                    [targetRoles]
+                    'SELECT id, role, full_name FROM users WHERE role = ANY($1)',
+                    [allTargetRoles]
                 );
 
                 for (const user of targetUsers.rows) {
                     try {
+                        let message = '';
+                        
+                        // Different messages based on user role and level
+                        if (level2Roles.includes(user.role)) {
+                            // Level 2 users (teachers/trainers) - they need to join first
+                            message = `تم نشر دورة جديدة "${course.name}" وهي متاحة للانضمام. يرجى مراجعة التفاصيل واختيار الأوقات المناسبة لك. انضمامك مطلوب لتفعيل الدورة للطلاب.`;
+                        } else if (level1Roles.includes(user.role)) {
+                            // Level 1 users (supervisors) - they can approve and launch
+                            message = `تم نشر دورة جديدة "${course.name}". يمكنك مراجعة التفاصيل والموافقة على انضمام المشاركين أو بدء انطلاق الدورة عند اكتمال العدد المطلوب.`;
+                        } else {
+                            // Default message
+                            message = `تم نشر دورة جديدة "${course.name}" وهي متاحة للانضمام.`;
+                        }
+
                         await pool.query(`
                             INSERT INTO notifications (user_id, type, message, related_id)
                             VALUES ($1, $2, $3, $4)`,
                             [
                                 user.id,
-                                'announcement',
-                                `تم نشر دورة جديدة "${course.name}" وهي متاحة للانضمام. يرجى مراجعة التفاصيل واختيار الأوقات المناسبة.`,
+                                'course_published',
+                                message,
                                 parseInt(id)
                             ]
                         );
@@ -92,6 +121,9 @@ export default async function handler(req, res) {
                         // Continue with other users even if one fails
                     }
                 }
+
+                console.log(`Course published: ${course.name}, notified ${targetUsers.rows.length} users`);
+                
             } catch (userQueryError) {
                 console.log('Failed to query users or create notifications:', userQueryError.message);
                 // Don't fail the entire publish process if notifications fail

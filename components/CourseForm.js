@@ -1054,7 +1054,6 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                                                 textAlign: 'center',
                                                 fontStyle: 'italic'
                                             }}>
-                                                يتم النظر للأصناف المرادة الموجودة في قاعدة البيانات (في neon.tech)
                                             </p>
                                             {availableUsers.filter(user => 
                                                 config.roles.includes(user.role)

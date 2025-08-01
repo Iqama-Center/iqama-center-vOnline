@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
-import { safeSerialize, createSuccessResponse, createErrorResponse, REVALIDATION_TIMES } from '../lib/isrUtils';
+import { safeSerialize } from '../lib/isrUtils';
 
 const AttendancePage = ({ user, courses, attendanceData }) => {
     const [selectedCourse, setSelectedCourse] = useState('');

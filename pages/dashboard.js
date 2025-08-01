@@ -2,7 +2,7 @@ import React from 'react';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
 import { getDashboardStats } from '../lib/queryOptimizer';
-import { safeSerialize, createSuccessResponse, createErrorResponse, REVALIDATION_TIMES } from '../lib/isrUtils';
+import { safeSerialize } from '../lib/isrUtils';
 import Layout from '../components/Layout';
 import AdminDashboard from '../components/dashboards/AdminDashboard';
 import FinanceDashboard from '../components/dashboards/FinanceDashboard';

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Layout from '../../components/Layout';
 import { withAuth } from '../../lib/withAuth';
 import pool from '../../lib/db';
-import { safeSerialize, createSuccessResponse, createErrorResponse, REVALIDATION_TIMES } from '../../lib/isrUtils';
+import { safeSerialize } from '../../lib/isrUtils';
 
 const TeacherCoursesPage = ({ user, courses, stats }) => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -506,28 +506,32 @@ export const getServerSideProps = withAuth(async (context) => {
             average_rating: 0
         };
 
-        return createSuccessResponse({
-            user,
-            courses,
-            stats: safeSerialize(stats)
-        }, REVALIDATION_TIMES.FREQUENT);
+        return {
+            props: {
+                user,
+                courses,
+                stats: safeSerialize(stats)
+            }
+        };
 
     } catch (error) {
         console.error('Error fetching teacher courses:', error);
         
-        return createErrorResponse({
-            user,
-            courses: [],
-            stats: {
-                total_courses: 0,
-                active_courses: 0,
-                published_courses: 0,
-                draft_courses: 0,
-                total_students: 0,
-                completed_students: 0,
-                average_rating: 0
+        return {
+            props: {
+                user,
+                courses: [],
+                stats: {
+                    total_courses: 0,
+                    active_courses: 0,
+                    published_courses: 0,
+                    draft_courses: 0,
+                    total_students: 0,
+                    completed_students: 0,
+                    average_rating: 0
+                }
             }
-        });
+        };
     }
 }, { roles: ['teacher'] });
 
