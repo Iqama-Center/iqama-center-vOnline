@@ -50,8 +50,8 @@ export default async function handler(req, res) {
 
             // Remove any pending enrollments for this course
             await pool.query(
-                'DELETE FROM enrollments WHERE course_id = $1 AND status IN ($2, $3)',
-                [id, 'pending_payment', 'pending_approval']
+                'DELETE FROM enrollments WHERE course_id = $1 AND status = ANY($2)',
+                [id, ['pending_payment', 'pending_approval']]
             );
 
             // Create notification for users who were enrolled

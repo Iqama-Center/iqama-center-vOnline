@@ -60,29 +60,33 @@ export default async function handler(req, res) {
         }
 
         // Update enrollment status instead of deleting
-        await pool.query('BEGIN');
+        const client = await pool.connect();
         
         try {
+            await client.query('BEGIN');
+            
             // Delete any pending payments first
-            await pool.query(
-                'DELETE FROM payments WHERE enrollment_id = $1 AND status IN ($2, $3)',
-                [enrollment.id, 'due', 'pending']
+            await client.query(
+                'DELETE FROM payments WHERE enrollment_id = $1 AND status = ANY($2)',
+                [enrollment.id, ['due', 'pending_review']]
             );
 
             // Update enrollment status to cancelled instead of deleting
-            await pool.query(
-                'UPDATE enrollments SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            await client.query(
+                'UPDATE enrollments SET status = $1 WHERE id = $2',
                 ['cancelled', enrollment.id]
             );
 
-            await pool.query('COMMIT');
+            await client.query('COMMIT');
 
             res.status(200).json({ 
                 message: 'تم الانسحاب من الدورة بنجاح. يمكنك التقديم مرة أخرى لاحقاً.' 
             });
         } catch (error) {
-            await pool.query('ROLLBACK');
+            await client.query('ROLLBACK');
             throw error;
+        } finally {
+            client.release();
         }
 
     } catch (err) {
