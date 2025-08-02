@@ -43,8 +43,8 @@ export default async function handler(req, res) {
 
             // Update course to published
             await pool.query(
-                'UPDATE courses SET is_published = true WHERE id = $1',
-                [course_id]
+                'UPDATE courses SET is_published = true, status = $1 WHERE id = $2',
+                ['published', course_id]
             );
 
             // Get participant levels for this course

@@ -20,9 +20,20 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
     }, [message]);
 
     const filteredCourses = courses.filter(course => {
-        const matchesFilter = filter === 'all' || course.status === filter;
+        // Ensure consistent status filtering - check both status and is_published for published courses
+        let matchesFilter = false;
+        if (filter === 'all') {
+            matchesFilter = true;
+        } else if (filter === 'published') {
+            matchesFilter = course.status === 'published' && course.is_published;
+        } else if (filter === 'draft') {
+            matchesFilter = course.status === 'draft' && !course.is_published;
+        } else {
+            matchesFilter = course.status === filter;
+        }
+        
         const matchesSearch = course.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                            course.description.toLowerCase().includes(searchTerm.toLowerCase());
+                            (course.description && course.description.toLowerCase().includes(searchTerm.toLowerCase()));
         return matchesFilter && matchesSearch;
     });
 
@@ -245,6 +256,30 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
 
             {message && <div className="message-bar" role="alert">{message}</div>}
 
+            {/* Temporary debug panel */}
+            {process.env.NODE_ENV === 'development' && (
+                <div style={{ background: '#fff3cd', border: '1px solid #ffeaa7', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                    <h4>🔧 Debug Panel (Development Only)</h4>
+                    <p><strong>Total Courses:</strong> {courses.length}</p>
+                    <p><strong>Draft Courses:</strong> {courses.filter(c => c.status === 'draft').length}</p>
+                    <p><strong>Published Courses:</strong> {courses.filter(c => c.status === 'published').length}</p>
+                    <p><strong>Inconsistent Courses:</strong> {courses.filter(c => 
+                        (c.status === 'draft' && c.is_published) || 
+                        (c.status === 'published' && !c.is_published)
+                    ).length}</p>
+                    {courses.filter(c => (c.status === 'draft' && c.is_published) || (c.status === 'published' && !c.is_published)).length > 0 && (
+                        <div style={{ background: '#f8d7da', padding: '10px', borderRadius: '4px', marginTop: '10px' }}>
+                            <strong>⚠️ Inconsistent courses found:</strong>
+                            <ul>
+                                {courses.filter(c => (c.status === 'draft' && c.is_published) || (c.status === 'published' && !c.is_published)).map(c => (
+                                    <li key={c.id}>{c.name} - Status: {c.status}, Published: {c.is_published?.toString()}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
+
             <div className="stats-summary">
                 <div className="stat-card">
                     <div className="stat-number">{courses.length}</div>
@@ -255,11 +290,11 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                     <div className="stat-label">دورات نشطة</div>
                 </div>
                 <div className="stat-card">
-                    <div className="stat-number">{courses.filter(c => c.status === 'published').length}</div>
+                    <div className="stat-number">{courses.filter(c => c.status === 'published' && c.is_published).length}</div>
                     <div className="stat-label">دورات منشورة</div>
                 </div>
                 <div className="stat-card">
-                    <div className="stat-number">{courses.filter(c => c.status === 'draft').length}</div>
+                    <div className="stat-number">{courses.filter(c => c.status === 'draft' && !c.is_published).length}</div>
                     <div className="stat-label">مسودات</div>
                 </div>
             </div>
@@ -302,7 +337,7 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                             <div className="meta-item">
                                 <span className="meta-label">تاريخ الإنشاء</span>
                                 <span className="meta-value">
-                                    {new Date(course.created_at).toLocaleDateString('ar-SA')}
+                                    {new Date(course.created_at).toLocaleDateString('en-GB')}
                                 </span>
                             </div>
                             <div className="meta-item">
@@ -312,7 +347,7 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                             <div className="meta-item">
                                 <span className="meta-label">تاريخ البدء</span>
                                 <span className="meta-value">
-                                    {course.start_date ? new Date(course.start_date).toLocaleDateString('ar-SA') : 'غير محدد'}
+                                    {course.start_date ? new Date(course.start_date).toLocaleDateString('en-GB') : 'غير محدد'}
                                 </span>
                             </div>
                             <div className="meta-item">
@@ -330,6 +365,16 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                             </div>
                         )}
 
+                        {/* Debug info - remove this after fixing */}
+                        {process.env.NODE_ENV === 'development' && (
+                            <div style={{ background: '#f0f0f0', padding: '10px', margin: '10px 0', fontSize: '0.8rem', borderRadius: '4px' }}>
+                                <strong>Debug Info:</strong><br/>
+                                Status: {course.status} | Published: {course.is_published?.toString()} | Launched: {course.is_launched?.toString()}<br/>
+                                Show Publish: {(course.status === 'draft' && !course.is_published).toString()}<br/>
+                                Show Unpublish: {(course.status === 'published' && course.is_published && !course.is_launched).toString()}
+                            </div>
+                        )}
+
                         <div className="course-actions">
                             <Link href={`/admin/courses/${course.id}/edit`} className="btn btn-primary">
                                 ✏️ تعديل
@@ -341,7 +386,8 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                                 👁️ عرض
                             </Link>
                             
-                            {course.status === 'draft' && (
+                            {/* Publish button - shows for draft courses that are not published */}
+                            {course.status === 'draft' && !course.is_published && (
                                 <button 
                                     onClick={() => handlePublishCourse(course.id)}
                                     className="btn btn-publish"
@@ -351,7 +397,8 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                                 </button>
                             )}
                             
-                            {course.status === 'published' && !course.is_launched && (
+                            {/* Launch and Unpublish buttons - show for published, non-launched courses */}
+                            {course.status === 'published' && course.is_published && !course.is_launched && (
                                 <>
                                     <button 
                                         className="btn btn-warning"
@@ -370,6 +417,7 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                                 </>
                             )}
                             
+                            {/* Complete button - shows for active courses */}
                             {course.status === 'active' && (
                                 <button 
                                     className="btn btn-info"
@@ -380,6 +428,7 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
                                 </button>
                             )}
                             
+                            {/* Delete button - always shows */}
                             <button 
                                 className="btn btn-danger"
                                 onClick={() => handleDeleteCourse(course.id)}
