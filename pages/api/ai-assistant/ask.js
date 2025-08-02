@@ -7,9 +7,9 @@ import getSystemPrompt from '../../../data/ai-system-prompt';
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 export default async function handler(req, res) {
-    if (req.method !== 'POST') return res.status(405).json({ message: 'Method Not Allowed' });
+    if (req.method !== 'POST') return res.status(405).json({ message: 'الطريقة غير مسموحة' });
     const token = req.cookies.token;
-    if (!token) return res.status(401).json({ message: 'Not authenticated' });
+    if (!token) return res.status(401).json({ message: 'غير مصرح بالدخول' });
     let user;
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
@@ -17,10 +17,10 @@ export default async function handler(req, res) {
         if (userResult.rows.length === 0) throw new Error('User not found');
         user = userResult.rows[0];
     } catch (err) {
-        return res.status(401).json({ message: 'Invalid token or user' });
+        return res.status(401).json({ message: 'رمز مميز غير صحيح أو مستخدم غير موجود' });
     }
     const { history } = req.body;
-    if (!history || history.length === 0) return res.status(400).json({ message: 'History is required' });
+    if (!history || history.length === 0) return res.status(400).json({ message: 'السجل مطلوب' });
     try {
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
         const systemInstruction = getSystemPrompt(user);
@@ -36,6 +36,6 @@ export default async function handler(req, res) {
         const answer = response.text();
         res.status(200).json({ answer });
     } catch (error) {
-        res.status(500).json({ message: 'Error processing your request' });
+        res.status(500).json({ message: 'خطأ في معالجة طلبك' });
     }
 }

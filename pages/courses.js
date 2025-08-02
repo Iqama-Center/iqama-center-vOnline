@@ -3,6 +3,7 @@ import Layout from '../components/Layout';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
 import { getFilteredCourses } from '../lib/queryOptimizer';
+import CourseDetailsDisplay from '../components/CourseDetailsDisplay';
 
 const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEnrolledCourses }) => {
     const [courses, setCourses] = useState(initialCourses || []);
@@ -13,7 +14,7 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
     if (!user) {
         return (
             <Layout user={null}>
-                <div>Loading...</div>
+                <div>جاري التحميل...</div>
             </Layout>
         );
     }
@@ -81,84 +82,83 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
                                 <div className="course-details">
                                     <strong>التفاصيل:</strong>
                                     <div className="details-content">
-                                        {course.details && typeof course.details === 'object' ? (
-                                            Object.entries(course.details).map(([key, value]) => {
-                                                const displayValue = Array.isArray(value) 
-                                                    ? value.join(', ') 
+                                        {course.details && typeof course.details === 'object' ? (() => {
+                                            const { formatCourseDetailsForDisplay } = require('../lib/courseDetailsTranslator');
+                                            const formattedDetails = formatCourseDetailsForDisplay(course.details);
+                                            // Arabic translation for common field names
+                                            const arabicLabels = {
+                                                'name': 'الاسم',
+                                                'description': 'الوصف',
+                                                'duration': 'المدة',
+                                                'level': 'المستوى',
+                                                'instructor': 'المدرب',
+                                                'location': 'المكان',
+                                                'schedule': 'الجدول',
+                                                'requirements': 'المتطلبات',
+                                                'objectives': 'الأهداف',
+                                                'materials': 'المواد',
+                                                'price': 'السعر',
+                                                'capacity': 'السعة',
+                                                'start_date': 'تاريخ البداية',
+                                                'end_date': 'تاريخ النهاية',
+                                                'category': 'الفئة',
+                                                'type': 'النوع',
+                                                'cost': 'التكلفة',
+                                                'currency': 'العملة',
+                                                'teachers': 'المعلمون',
+                                                'instructors': 'المدربون',
+                                                'supervisor': 'المشرف',
+                                                'supervisors': 'المشرفون',
+                                                'trainer': 'المدرب',
+                                                'trainers': 'المدربون',
+                                                'facilitator': 'الميسر',
+                                                'facilitators': 'الميسرون',
+                                                'coordinator': 'المنسق',
+                                                'coordinators': 'المنسقون',
+                                                'assistant': 'المساعد',
+                                                'assistants': 'المساعدون',
+                                                'mentor': 'الموجه',
+                                                'mentors': 'الموجهون',
+                                                'guide': 'الدليل',
+                                                'guides': 'الأدلة',
+                                                'leader': 'القائد',
+                                                'leaders': 'القادة',
+                                                'manager': 'المدير',
+                                                'managers': 'المديرون',
+                                                'admin': 'المسؤول',
+                                                'admins': 'المسؤولون',
+                                                'organizer': 'المنظم',
+                                                'organizers': 'المنظمون',
+                                                'host': 'المضيف',
+                                                'hosts': 'المضيفون',
+                                                'speaker': 'المتحدث',
+                                                'speakers': 'المتحدثون',
+                                                'presenter': 'المقدم',
+                                                'presenters': 'المقدمون',
+                                                'expert': 'الخبير',
+                                                'experts': 'الخبراء',
+                                                'specialist': 'الأخصائي',
+                                                'specialists': 'الأخصائيون',
+                                                'consultant': 'الاستشاري',
+                                                'consultants': 'الاستشاريون',
+                                                'advisor': 'المستشار',
+                                                'advisors': 'المستشارون'
+                                            };
+                                            return formattedDetails.map(({ key, label, value }) => {
+                                                const displayValue = Array.isArray(value)
+                                                    ? value.join(', ')
                                                     : (typeof value === 'object' && value !== null)
                                                         ? JSON.stringify(value)
                                                         : String(value || '');
-                                                
-                                                // Arabic translation for common field names
-                                                const arabicLabels = {
-                                                    'name': 'الاسم',
-                                                    'description': 'الوصف',
-                                                    'duration': 'المدة',
-                                                    'level': 'المستوى',
-                                                    'instructor': 'المدرب',
-                                                    'location': 'المكان',
-                                                    'schedule': 'الجدول',
-                                                    'requirements': 'المتطلبات',
-                                                    'objectives': 'الأهداف',
-                                                    'materials': 'المواد',
-                                                    'price': 'السعر',
-                                                    'capacity': 'السعة',
-                                                    'start_date': 'تاريخ البداية',
-                                                    'end_date': 'تاريخ النهاية',
-                                                    'category': 'الفئة',
-                                                    'type': 'النوع',
-                                                    'cost': 'التكلفة',
-                                                    'currency': 'العملة',
-                                                    'teachers': 'المعلمون',
-                                                    'instructors': 'المدربون',
-                                                    'supervisor': 'المشرف',
-                                                    'supervisors': 'المشرفون',
-                                                    'trainer': 'المدرب',
-                                                    'trainers': 'المدربون',
-                                                    'facilitator': 'الميسر',
-                                                    'facilitators': 'الميسرون',
-                                                    'coordinator': 'المنسق',
-                                                    'coordinators': 'المنسقون',
-                                                    'assistant': 'المساعد',
-                                                    'assistants': 'المساعدون',
-                                                    'mentor': 'الموجه',
-                                                    'mentors': 'الموجهون',
-                                                    'guide': 'الدليل',
-                                                    'guides': 'الأدلة',
-                                                    'leader': 'القائد',
-                                                    'leaders': 'القادة',
-                                                    'manager': 'المدير',
-                                                    'managers': 'المديرون',
-                                                    'admin': 'المسؤول',
-                                                    'admins': 'المسؤولون',
-                                                    'organizer': 'المنظم',
-                                                    'organizers': 'المنظمون',
-                                                    'host': 'المضيف',
-                                                    'hosts': 'المضيفون',
-                                                    'speaker': 'المتحدث',
-                                                    'speakers': 'المتحدثون',
-                                                    'presenter': 'المقدم',
-                                                    'presenters': 'المقدمون',
-                                                    'expert': 'الخبير',
-                                                    'experts': 'الخبراء',
-                                                    'specialist': 'الأخصائي',
-                                                    'specialists': 'الأخصائيون',
-                                                    'consultant': 'الاستشاري',
-                                                    'consultants': 'الاستشاريون',
-                                                    'advisor': 'المستشار',
-                                                    'advisors': 'المستشارون'
-                                                };
-                                                
                                                 const arabicLabel = arabicLabels[key] || key;
-                                                
                                                 return (
                                                     <div key={key} className="detail-item">
                                                         <span className="detail-label">{arabicLabel}:</span>
                                                         <span className="detail-value">{displayValue}</span>
                                                     </div>
                                                 );
-                                            })
-                                        ) : (
+                                            });
+                                        })() : (
                                             <span>{course.details || 'لا توجد تفاصيل إضافية'}</span>
                                         )}
                                     </div>
@@ -218,24 +218,7 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
                         <div className="course-details">
                             <strong>التفاصيل:</strong>
                             <div className="details-content">
-                                {course.details && typeof course.details === 'object' ? (
-                                    Object.entries(course.details).map(([key, value]) => {
-                                        const displayValue = Array.isArray(value) 
-                                            ? value.join(', ') 
-                                            : (typeof value === 'object' && value !== null)
-                                                ? JSON.stringify(value)
-                                                : String(value || '');
-                                        
-                                        return (
-                                            <div key={key} className="detail-item">
-                                                <span className="detail-label">{key}:</span>
-                                                <span className="detail-value">{displayValue}</span>
-                                            </div>
-                                        );
-                                    })
-                                ) : (
-                                    <span>{course.details || 'لا توجد تفاصيل إضافية'}</span>
-                                )}
+                                <CourseDetailsDisplay details={course.details} />
                             </div>
                         </div>
                         <div className="course-status">

@@ -11,7 +11,7 @@ const CourseDetailPage = ({ user, course, schedule, tasks, exams, supervisor, me
     const [loading, setLoading] = useState(false);
 
     if (router.isFallback) {
-        return <div>Loading...</div>;
+        return <div>جاري التحميل...</div>;
     }
 
     const handleSendMessage = async (e) => {
