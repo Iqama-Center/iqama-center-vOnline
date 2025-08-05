@@ -57,7 +57,7 @@ const WorkerAttendancePage = ({ user }) => {
         } finally {
             setLoading(false);
         }
-    }, [generateMockAttendance]);
+    }, [currentMonth]);
 
     const checkTodayStatus = useCallback(() => {
         const today = new Date().toISOString().split('T')[0];

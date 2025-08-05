@@ -35,7 +35,7 @@ const WorkerPerformancePage = ({ user }) => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [currentPeriod]);
 
     const generateMockPerformanceData = () => {
         return {
