@@ -139,4 +139,10 @@ const TranslateCoursesPage = ({ user }) => {
   );
 };
 
-export default withAuth(TranslateCoursesPage, ['admin']);
+export const getServerSideProps = withAuth(async (context) => {
+  // You can add any server-side logic here if needed.
+  // The user object will be automatically added to props by withAuth.
+  return { props: {} };
+}, ['admin']);
+
+export default TranslateCoursesPage;

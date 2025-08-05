@@ -265,18 +265,18 @@ export async function getStaticProps() {
 
         // Fetch recent public announcements or news
         let recentAnnouncements = [];
-        try {
-            const announcementsResult = await pool.query(`
-                SELECT id, title, content, created_at
-                FROM announcements 
-                WHERE is_public = true AND status = 'active'
-                ORDER BY created_at DESC 
-                LIMIT 5
-            `);
-            recentAnnouncements = announcementsResult.rows;
-        } catch (err) {
-            console.log('Announcements table not found, using empty array');
-        }
+        // try {
+        //     const announcementsResult = await pool.query(`
+        //         SELECT id, title, content, created_at
+        //         FROM announcements 
+        //         WHERE is_public = true AND status = 'active'
+        //         ORDER BY created_at DESC 
+        //         LIMIT 5
+        //     `);
+        //     recentAnnouncements = announcementsResult.rows;
+        // } catch (err) {
+        //     console.log('Announcements table not found, using empty array');
+        // }
 
         // Fetch recent courses for public display
         const recentCoursesResult = await pool.query(`
