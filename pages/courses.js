@@ -4,8 +4,9 @@ import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
 import { getFilteredCourses } from '../lib/queryOptimizer';
 import CourseDetailsDisplay from '../components/CourseDetailsDisplay';
+import CourseVisibilityIndicator from '../components/CourseVisibilityIndicator';
 
-const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEnrolledCourses }) => {
+const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEnrolledCourses, userLevel }) => {
     const [courses, setCourses] = useState(initialCourses || []);
     const [enrolledCourses, setEnrolledCourses] = useState(initialEnrolledCourses || []);
     const [message, setMessage] = useState(null);
@@ -210,26 +211,65 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
                     {message.text}
                 </div>
             )}
-            <div id="courses-container" className="courses-container">
-                {courses.map(course => (
-                    <div className="course-card" key={course.id} style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '5px' }}>
-                        <h3>{course.name}</h3>
-                        <p>{course.description}</p>
-                        <div className="course-details">
-                            <strong>التفاصيل:</strong>
-                            <div className="details-content">
-                                <CourseDetailsDisplay details={course.details} />
-                            </div>
+            {/* Available Courses Section */}
+            <h2 style={{ color: '#28a745', marginBottom: '20px' }}>
+                <i className="fas fa-graduation-cap"></i> الدورات المتاحة للتسجيل
+                {userLevel && (
+                    <span style={{ fontSize: '0.7rem', color: '#6c757d', marginRight: '10px' }}>
+                        (درجة {userLevel})
+                    </span>
+                )}
+            </h2>
+            
+            {/* Show explanation for degree 3 users when no courses available */}
+            {courses.length === 0 && userLevel === 3 ? (
+                <div className="degree-3-explanation">
+                    <div className="explanation-card">
+                        <h3><i className="fas fa-info-circle"></i> لماذا لا أرى دورات متاحة؟</h3>
+                        <p>كطالب (درجة 3)، تظهر لك الدورات فقط بعد:</p>
+                        <ul>
+                            <li><strong>🎯 درجة 1 (المشرفين):</strong> انضمام المشرفين أو رؤساء الأقسام</li>
+                            <li><strong>👨‍🏫 درجة 2 (المعلمين):</strong> انضمام المعلمين أو المدربين</li>
+                        </ul>
+                        <p>هذا النظام يضمن وجود كادر مؤهل قبل فتح التسجيل للطلاب.</p>
+                        <div className="contact-info">
+                            <i className="fas fa-phone"></i>
+                            للاستفسار، يرجى التواصل مع الإدارة
                         </div>
-                        <div className="course-status">
-                            <span className={`status-badge ${course.status}`}>
-                                {course.status === 'active' ? 'نشطة' : 'متاحة للانضمام فيها'}
-                            </span>
-                        </div>
-                        <button onClick={() => handleEnroll(course.id)}>التقديم الآن</button>
                     </div>
-                ))}
-            </div>
+                </div>
+            ) : courses.length === 0 ? (
+                <div className="no-courses">
+                    <i className="fas fa-info-circle"></i>
+                    <p>لا توجد دورات متاحة للتسجيل في الوقت الحالي.</p>
+                    <p>يرجى المراجعة لاحقاً أو التواصل مع الإدارة.</p>
+                </div>
+            ) : (
+                <div id="courses-container" className="courses-container">
+                    {courses.map(course => (
+                        <div className="course-card" key={course.id} style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '5px' }}>
+                            <h3>{course.name}</h3>
+                            <p>{course.description}</p>
+                            
+                            {/* Show visibility indicator */}
+                            <CourseVisibilityIndicator course={course} userLevel={userLevel} />
+                            
+                            <div className="course-details">
+                                <strong>التفاصيل:</strong>
+                                <div className="details-content">
+                                    <CourseDetailsDisplay details={course.details} />
+                                </div>
+                            </div>
+                            <div className="course-status">
+                                <span className={`status-badge ${course.status}`}>
+                                    {course.status === 'active' ? 'نشطة' : 'متاحة للانضمام فيها'}
+                                </span>
+                            </div>
+                            <button onClick={() => handleEnroll(course.id)}>التقديم الآن</button>
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Message Display */}
             {message && (
@@ -430,6 +470,53 @@ const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEn
                 .unenroll-btn:hover {
                     background-color: #c82333;
                 }
+                
+                /* Degree 3 Explanation Styles */
+                .degree-3-explanation {
+                    margin: 20px 0;
+                }
+                .explanation-card {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 25px;
+                    border-radius: 12px;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+                }
+                .explanation-card h3 {
+                    margin: 0 0 15px 0;
+                    font-size: 1.3rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .explanation-card ul {
+                    margin: 15px 0;
+                    padding-right: 20px;
+                }
+                .explanation-card li {
+                    margin: 10px 0;
+                    line-height: 1.6;
+                }
+                .contact-info {
+                    background: rgba(255,255,255,0.1);
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin-top: 20px;
+                    text-align: center;
+                    font-weight: 500;
+                }
+                .contact-info i {
+                    margin-left: 8px;
+                }
+                
+                @media (max-width: 768px) {
+                    .explanation-card {
+                        padding: 20px;
+                    }
+                    .explanation-card h3 {
+                        font-size: 1.1rem;
+                    }
+                }
             `}</style>
         </Layout>
     );
@@ -443,11 +530,62 @@ export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
     
     try {
-        // Get public courses data
-        const coursesResult = await getFilteredCourses(
-            { status: 'active', limit: 100 }, 
-            null // No user ID for static generation
-        );
+        // Determine user's درجة level based on role
+        let userLevel = 3; // Default to درجة 3 (students/recipients)
+        if (['admin', 'head'].includes(user.role)) {
+            userLevel = 1; // درجة 1 (supervisors)
+        } else if (['teacher', 'worker'].includes(user.role)) {
+            userLevel = 2; // درجة 2 (managers/teachers)
+        }
+
+        let coursesResult = [];
+
+        if (userLevel === 3) {
+            // For درجة 3 users (students), only show courses where درجة 1 and 2 have enrolled
+            const result = await pool.query(`
+                SELECT 
+                    c.id, 
+                    c.name, 
+                    c.description, 
+                    c.details, 
+                    c.status, 
+                    c.created_at,
+                    c.is_published
+                FROM courses c
+                WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true))
+                AND NOT EXISTS (
+                    SELECT 1 FROM enrollments e2 
+                    WHERE e2.course_id = c.id 
+                    AND e2.user_id = $1 
+                    AND e2.status IN ('pending_payment', 'pending_approval', 'active', 'waiting_start')
+                )
+                AND EXISTS (
+                    -- Check if درجة 1 users (supervisors) have enrolled
+                    SELECT 1 FROM enrollments e1 
+                    JOIN users u1 ON e1.user_id = u1.id 
+                    WHERE e1.course_id = c.id 
+                    AND u1.role IN ('admin', 'head')
+                    AND e1.status IN ('active', 'pending_approval', 'waiting_start')
+                )
+                AND EXISTS (
+                    -- Check if درجة 2 users (teachers/managers) have enrolled
+                    SELECT 1 FROM enrollments e2 
+                    JOIN users u2 ON e2.user_id = u2.id 
+                    WHERE e2.course_id = c.id 
+                    AND u2.role IN ('teacher', 'worker')
+                    AND e2.status IN ('active', 'pending_approval', 'waiting_start')
+                )
+                ORDER BY c.created_at DESC
+                LIMIT 100
+            `, [user.id]);
+            coursesResult = result.rows;
+        } else {
+            // For درجة 1 and 2 users, show all published courses
+            coursesResult = await getFilteredCourses(
+                { status: 'active', limit: 100 }, 
+                null // No user ID for static generation
+            );
+        }
 
         // Get course statistics
         const statsResult = await pool.query(`
@@ -494,6 +632,7 @@ export const getServerSideProps = withAuth(async (context) => {
                 stats: JSON.parse(JSON.stringify(stats)),
                 categories: JSON.parse(JSON.stringify(categories)),
                 enrolledCourses: JSON.parse(JSON.stringify(enrolledCoursesResult.rows)),
+                userLevel: userLevel, // Include for debugging
                 lastUpdated: new Date().toISOString()
             }
         };
@@ -507,6 +646,7 @@ export const getServerSideProps = withAuth(async (context) => {
                 stats: { total_courses: 0, active_courses: 0, total_students: 0 },
                 categories: [],
                 enrolledCourses: [],
+                userLevel: 3,
                 lastUpdated: new Date().toISOString()
             }
         };

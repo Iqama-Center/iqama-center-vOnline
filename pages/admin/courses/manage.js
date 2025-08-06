@@ -458,11 +458,17 @@ export const getServerSideProps = withAuth(async (context) => {
             SELECT 
                 c.*,
                 u.full_name as created_by_name,
-                COUNT(e.id) as enrollment_count
+                COALESCE(enrollment_counts.enrollment_count, 0) as enrollment_count
             FROM courses c
             LEFT JOIN users u ON c.created_by = u.id
-            LEFT JOIN enrollments e ON c.id = e.course_id AND e.status IN ('active', 'waiting_start')
-            GROUP BY c.id, u.full_name
+            LEFT JOIN (
+                SELECT 
+                    course_id, 
+                    COUNT(*) as enrollment_count
+                FROM enrollments 
+                WHERE status IN ('active', 'waiting_start')
+                GROUP BY course_id
+            ) enrollment_counts ON c.id = enrollment_counts.course_id
             ORDER BY c.created_at DESC
         `);
 

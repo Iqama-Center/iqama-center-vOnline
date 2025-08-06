@@ -26,6 +26,34 @@ function getStatusText(status) {
 }
 
 const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingRequests }) => {
+    const [degreeMetrics, setDegreeMetrics] = React.useState(null);
+    const [loadingMetrics, setLoadingMetrics] = React.useState(true);
+
+    // Fetch degree enrollment metrics
+    React.useEffect(() => {
+        const fetchDegreeMetrics = async () => {
+            try {
+                const response = await fetch('/api/admin/degree-enrollment-metrics');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success) {
+                        setDegreeMetrics(data.data);
+                    } else {
+                        console.error('Degree metrics API returned error:', data.message);
+                    }
+                } else {
+                    console.error('Failed to fetch degree metrics:', response.status);
+                }
+            } catch (error) {
+                console.error('Error fetching degree metrics:', error);
+            } finally {
+                setLoadingMetrics(false);
+            }
+        };
+
+        fetchDegreeMetrics();
+    }, []);
+
     // Debug logging to check what data is being received
     React.useEffect(() => {
         console.log('=== AdminDashboard Debug Info ===');
@@ -145,6 +173,113 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     </div>
                 </div>
             </div>
+
+            {/* Debug Info */}
+            {process.env.NODE_ENV === 'development' && (
+                <div style={{ background: '#fff3cd', padding: '15px', margin: '20px 0', borderRadius: '8px' }}>
+                    <h4>🔧 Debug Info</h4>
+                    <p>Loading Metrics: {loadingMetrics.toString()}</p>
+                    <p>Degree Metrics: {degreeMetrics ? 'Loaded' : 'Not Loaded'}</p>
+                    <p>Stats: {JSON.stringify(stats)}</p>
+                </div>
+            )}
+
+            {/* Degree Enrollment Metrics */}
+            {!loadingMetrics && degreeMetrics && (
+                <div className="degree-metrics-section">
+                    <h2><i className="fas fa-layer-group"></i> إحصائيات التسجيل بنظام الدرجات</h2>
+                    
+                    {/* Overall Degree Stats */}
+                    <div className="degree-stats-grid">
+                        <div className="degree-stat-card degree-1">
+                            <div className="degree-icon">🎯</div>
+                            <div className="degree-content">
+                                <h3>{degreeMetrics.overallStats.total_degree_1_users || 0}</h3>
+                                <p>درجة 1 - المشرفين</p>
+                                <small>{degreeMetrics.overallStats.active_degree_1_enrollments || 0} تسجيل نشط</small>
+                            </div>
+                        </div>
+                        <div className="degree-stat-card degree-2">
+                            <div className="degree-icon">👨‍🏫</div>
+                            <div className="degree-content">
+                                <h3>{degreeMetrics.overallStats.total_degree_2_users || 0}</h3>
+                                <p>درجة 2 - المعلمين</p>
+                                <small>{degreeMetrics.overallStats.active_degree_2_enrollments || 0} تسجيل نشط</small>
+                            </div>
+                        </div>
+                        <div className="degree-stat-card degree-3">
+                            <div className="degree-icon">🎓</div>
+                            <div className="degree-content">
+                                <h3>{degreeMetrics.overallStats.total_degree_3_users || 0}</h3>
+                                <p>درجة 3 - الطلاب</p>
+                                <small>{degreeMetrics.overallStats.active_degree_3_enrollments || 0} تسجيل نشط</small>
+                            </div>
+                        </div>
+                        <div className="degree-stat-card visibility">
+                            <div className="degree-icon">👁️</div>
+                            <div className="degree-content">
+                                <h3>{degreeMetrics.overallStats.courses_visible_to_degree_3 || 0}</h3>
+                                <p>دورات مرئية للطلاب</p>
+                                <small>من أصل {degreeMetrics.overallStats.total_published_courses || 0} دورة منشورة</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Course Enrollment Status Table */}
+                    <div className="course-enrollment-table">
+                        <h3>حالة التسجيل في الدورات</h3>
+                        <div className="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>اسم الدورة</th>
+                                        <th>درجة 1</th>
+                                        <th>درجة 2</th>
+                                        <th>درجة 3</th>
+                                        <th>الحالة</th>
+                                        <th>مرئية للطلاب</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {degreeMetrics.courseMetrics.map(course => (
+                                        <tr key={course.course_id}>
+                                            <td>{course.course_name}</td>
+                                            <td>
+                                                <span className={`enrollment-count ${course.degree_1_enrolled > 0 ? 'has-enrollment' : 'no-enrollment'}`}>
+                                                    {course.degree_1_enrolled}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`enrollment-count ${course.degree_2_enrolled > 0 ? 'has-enrollment' : 'no-enrollment'}`}>
+                                                    {course.degree_2_enrolled}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`enrollment-count ${course.degree_3_enrolled > 0 ? 'has-enrollment' : 'no-enrollment'}`}>
+                                                    {course.degree_3_enrolled}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`enrollment-stage ${course.enrollment_stage}`}>
+                                                    {course.enrollment_stage === 'waiting_for_staff' && '⏳ في انتظار الكادر'}
+                                                    {course.enrollment_stage === 'waiting_for_supervisors' && '🎯 في انتظار المشرفين'}
+                                                    {course.enrollment_stage === 'waiting_for_teachers' && '👨‍🏫 في انتظار المعلمين'}
+                                                    {course.enrollment_stage === 'ready_for_students' && '✅ جاهزة للطلاب'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span className={`visibility-status ${course.visible_to_degree_3 ? 'visible' : 'hidden'}`}>
+                                                    {course.visible_to_degree_3 ? '👁️ مرئية' : '🚫 مخفية'}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* إحصائيات تفصيلية شاملة */}
             <div className="detailed-stats">
@@ -280,6 +415,151 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
                     gap: 20px;
                     margin: 20px 0;
+                }
+                
+                /* Degree Metrics Styles */
+                .degree-metrics-section {
+                    background: white;
+                    border-radius: 12px;
+                    padding: 25px;
+                    margin: 30px 0;
+                    box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+                }
+                .degree-metrics-section h2 {
+                    color: #2c3e50;
+                    margin-bottom: 20px;
+                    font-size: 1.5rem;
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .degree-stats-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                    gap: 15px;
+                    margin-bottom: 25px;
+                }
+                .degree-stat-card {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    border-radius: 10px;
+                    padding: 20px;
+                    color: white;
+                    display: flex;
+                    align-items: center;
+                    gap: 15px;
+                }
+                .degree-stat-card.degree-1 {
+                    background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+                }
+                .degree-stat-card.degree-2 {
+                    background: linear-gradient(135deg, #4ecdc4 0%, #44a08d 100%);
+                }
+                .degree-stat-card.degree-3 {
+                    background: linear-gradient(135deg, #45b7d1 0%, #96c93d 100%);
+                }
+                .degree-stat-card.visibility {
+                    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+                }
+                .degree-icon {
+                    font-size: 2rem;
+                    opacity: 0.9;
+                }
+                .degree-content h3 {
+                    font-size: 1.8rem;
+                    margin: 0;
+                    font-weight: bold;
+                }
+                .degree-content p {
+                    margin: 5px 0;
+                    font-size: 0.9rem;
+                    opacity: 0.9;
+                }
+                .degree-content small {
+                    font-size: 0.75rem;
+                    opacity: 0.8;
+                }
+                
+                /* Course Enrollment Table */
+                .course-enrollment-table {
+                    margin-top: 25px;
+                }
+                .course-enrollment-table h3 {
+                    color: #2c3e50;
+                    margin-bottom: 15px;
+                }
+                .table-container {
+                    overflow-x: auto;
+                    border-radius: 8px;
+                    border: 1px solid #e1e8ed;
+                }
+                .course-enrollment-table table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    background: white;
+                }
+                .course-enrollment-table th,
+                .course-enrollment-table td {
+                    padding: 12px 15px;
+                    text-align: right;
+                    border-bottom: 1px solid #e1e8ed;
+                }
+                .course-enrollment-table th {
+                    background: #f8f9fa;
+                    font-weight: 600;
+                    color: #2c3e50;
+                }
+                .enrollment-count {
+                    display: inline-block;
+                    padding: 4px 8px;
+                    border-radius: 12px;
+                    font-size: 0.85rem;
+                    font-weight: 600;
+                }
+                .enrollment-count.has-enrollment {
+                    background: #d4edda;
+                    color: #155724;
+                }
+                .enrollment-count.no-enrollment {
+                    background: #f8d7da;
+                    color: #721c24;
+                }
+                .enrollment-stage {
+                    display: inline-block;
+                    padding: 6px 12px;
+                    border-radius: 15px;
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                }
+                .enrollment-stage.waiting_for_staff {
+                    background: #fff3cd;
+                    color: #856404;
+                }
+                .enrollment-stage.waiting_for_supervisors {
+                    background: #f8d7da;
+                    color: #721c24;
+                }
+                .enrollment-stage.waiting_for_teachers {
+                    background: #d1ecf1;
+                    color: #0c5460;
+                }
+                .enrollment-stage.ready_for_students {
+                    background: #d4edda;
+                    color: #155724;
+                }
+                .visibility-status {
+                    display: inline-block;
+                    padding: 6px 12px;
+                    border-radius: 15px;
+                    font-size: 0.8rem;
+                    font-weight: 500;
+                }
+                .visibility-status.visible {
+                    background: #d4edda;
+                    color: #155724;
+                }
+                .visibility-status.hidden {
+                    background: #f8d7da;
+                    color: #721c24;
                 }
                 .stat-card {
                     background: white;
