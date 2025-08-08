@@ -17,42 +17,29 @@ export default async function handler(req, res) {
 
         console.log('🔍 Fetching degree enrollment metrics...');
         
-        // Get درجة enrollment metrics
+        // Get degree enrollment metrics
         const degreeMetrics = await pool.query(`
-            WITH degree_classification AS (
-                SELECT 
-                    u.id,
-                    u.role,
-                    CASE 
-                        WHEN u.role IN ('admin', 'head') THEN 1
-                        WHEN u.role IN ('teacher', 'worker') THEN 2
-                        ELSE 3
-                    END as degree_level
-                FROM users u
-                WHERE (u.account_status = 'active' OR u.account_status IS NULL)
-            ),
-            course_degree_stats AS (
+            WITH course_degree_stats AS (
                 SELECT 
                     c.id as course_id,
                     c.name as course_name,
                     c.status as course_status,
                     c.is_published,
-                    COUNT(CASE WHEN dc.degree_level = 1 THEN 1 END) as degree_1_enrolled,
-                    COUNT(CASE WHEN dc.degree_level = 2 THEN 1 END) as degree_2_enrolled,
-                    COUNT(CASE WHEN dc.degree_level = 3 THEN 1 END) as degree_3_enrolled,
+                    COUNT(CASE WHEN e.level_number = 1 THEN 1 END) as degree_1_enrolled,
+                    COUNT(CASE WHEN e.level_number = 2 THEN 1 END) as degree_2_enrolled,
+                    COUNT(CASE WHEN e.level_number = 3 THEN 1 END) as degree_3_enrolled,
                     COUNT(e.id) as total_enrolled,
-                    -- Check if course is visible to degree 3
+                    -- Visibility is determined by the presence of active enrollments in levels 1 and 2 AND the course being published
                     CASE 
-                        WHEN COUNT(CASE WHEN dc.degree_level = 1 THEN 1 END) > 0 
-                         AND COUNT(CASE WHEN dc.degree_level = 2 THEN 1 END) > 0 
-                        THEN true 
-                        ELSE false 
+                        WHEN c.is_published = true
+                         AND (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND level_number = 1 AND status = 'active') > 0
+                         AND (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND level_number = 2 AND status = 'active') > 0
+                        THEN true
+                        ELSE false
                     END as visible_to_degree_3
                 FROM courses c
-                LEFT JOIN enrollments e ON c.id = e.course_id 
-                    AND e.status IN ('active', 'pending_approval', 'waiting_start')
-                LEFT JOIN degree_classification dc ON e.user_id = dc.id
-                WHERE c.status IN ('active', 'published', 'draft') -- Show all courses, not just published
+                LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
+                WHERE c.status IN ('active', 'published', 'draft')
                 GROUP BY c.id, c.name, c.status, c.is_published
             )
             SELECT 
@@ -65,6 +52,7 @@ export default async function handler(req, res) {
                 total_enrolled,
                 visible_to_degree_3,
                 CASE 
+                    WHEN is_published = false THEN 'pending_publication'
                     WHEN degree_1_enrolled = 0 AND degree_2_enrolled = 0 THEN 'waiting_for_staff'
                     WHEN degree_1_enrolled = 0 THEN 'waiting_for_supervisors'
                     WHEN degree_2_enrolled = 0 THEN 'waiting_for_teachers'
@@ -76,85 +64,30 @@ export default async function handler(req, res) {
 
         // Get overall degree statistics
         const overallStats = await pool.query(`
-            WITH degree_classification AS (
-                SELECT 
-                    u.id,
-                    u.role,
-                    CASE 
-                        WHEN u.role IN ('admin', 'head') THEN 1
-                        WHEN u.role IN ('teacher', 'worker') THEN 2
-                        ELSE 3
-                    END as degree_level
-                FROM users u
-                WHERE u.account_status = 'active' OR u.account_status IS NULL
-            )
             SELECT 
-                COUNT(CASE WHEN dc.degree_level = 1 THEN 1 END) as total_degree_1_users,
-                COUNT(CASE WHEN dc.degree_level = 2 THEN 1 END) as total_degree_2_users,
-                COUNT(CASE WHEN dc.degree_level = 3 THEN 1 END) as total_degree_3_users,
+                (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE level_number = 1 AND status = 'active') as active_degree_1_enrollments,
+                (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE level_number = 2 AND status = 'active') as active_degree_2_enrollments,
+                (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE level_number = 3 AND status = 'active') as active_degree_3_enrollments,
                 (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_published_courses,
                 (SELECT COUNT(*) FROM courses c 
                  WHERE c.is_published = true 
-                 AND EXISTS (
-                     SELECT 1 FROM enrollments e1 
-                     JOIN users u1 ON e1.user_id = u1.id 
-                     WHERE e1.course_id = c.id 
-                     AND u1.role IN ('admin', 'head')
-                     AND e1.status IN ('active', 'pending_approval', 'waiting_start')
-                 )
-                 AND EXISTS (
-                     SELECT 1 FROM enrollments e2 
-                     JOIN users u2 ON e2.user_id = u2.id 
-                     WHERE e2.course_id = c.id 
-                     AND u2.role IN ('teacher', 'worker')
-                     AND e2.status IN ('active', 'pending_approval', 'waiting_start')
-                 )
-                ) as courses_visible_to_degree_3,
-                (SELECT COUNT(DISTINCT e.user_id) 
-                 FROM enrollments e 
-                 JOIN users u ON e.user_id = u.id 
-                 WHERE e.status IN ('active', 'pending_approval', 'waiting_start')
-                 AND u.role IN ('admin', 'head')
-                ) as active_degree_1_enrollments,
-                (SELECT COUNT(DISTINCT e.user_id) 
-                 FROM enrollments e 
-                 JOIN users u ON e.user_id = u.id 
-                 WHERE e.status IN ('active', 'pending_approval', 'waiting_start')
-                 AND u.role IN ('teacher', 'worker')
-                ) as active_degree_2_enrollments,
-                (SELECT COUNT(DISTINCT e.user_id) 
-                 FROM enrollments e 
-                 JOIN users u ON e.user_id = u.id 
-                 WHERE e.status IN ('active', 'pending_approval', 'waiting_start')
-                 AND u.role NOT IN ('admin', 'head', 'teacher', 'worker')
-                ) as active_degree_3_enrollments
-            FROM degree_classification dc
+                 AND (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND level_number = 1 AND status = 'active') > 0
+                 AND (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND level_number = 2 AND status = 'active') > 0
+                ) as courses_visible_to_degree_3
         `);
 
         // Get enrollment trends by degree over time
         const enrollmentTrends = await pool.query(`
-            WITH degree_classification AS (
-                SELECT 
-                    u.id,
-                    u.role,
-                    CASE 
-                        WHEN u.role IN ('admin', 'head') THEN 1
-                        WHEN u.role IN ('teacher', 'worker') THEN 2
-                        ELSE 3
-                    END as degree_level
-                FROM users u
-                WHERE u.account_status = 'active' OR u.account_status IS NULL
-            )
             SELECT 
                 DATE_TRUNC('week', e.created_at) as week_start,
-                dc.degree_level,
+                e.level_number,
                 COUNT(*) as enrollments_count
             FROM enrollments e
-            JOIN degree_classification dc ON e.user_id = dc.id
             WHERE e.created_at >= NOW() - INTERVAL '8 weeks'
-            AND e.status IN ('active', 'pending_approval', 'waiting_start')
-            GROUP BY DATE_TRUNC('week', e.created_at), dc.degree_level
-            ORDER BY week_start DESC, dc.degree_level
+            AND e.status = 'active'
+            AND e.level_number IS NOT NULL
+            GROUP BY DATE_TRUNC('week', e.created_at), e.level_number
+            ORDER BY week_start DESC, e.level_number
         `);
 
         console.log('📊 Degree metrics results:', {

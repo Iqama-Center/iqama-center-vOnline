@@ -112,7 +112,7 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                         <small>
                             <div>طلاب نشطين: {getStatValue(stats?.unique_active_students || stats?.total_students || stats?.activeStudents, 'active_students')}</div>
                             <div>معلمين: {getStatValue(stats?.total_teachers || stats?.teacherCount, 'total_teachers')}</div>
-                            <div>مديرين: {getStatValue(stats?.total_admins || stats?.adminCount, 'total_admins')}</div>
+                            <div>مديرين: {getStatValue(stats?.total_admins || stats?.adminCount, 'admins')}</div>
                             <i className="fas fa-arrow-left"></i> انقر للعرض
                         </small>
                     </div>
@@ -261,6 +261,7 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                                             </td>
                                             <td>
                                                 <span className={`enrollment-stage ${course.enrollment_stage}`}>
+                                                    {course.enrollment_stage === 'pending_publication' && '📝 في انتظار النشر'}
                                                     {course.enrollment_stage === 'waiting_for_staff' && '⏳ في انتظار الكادر'}
                                                     {course.enrollment_stage === 'waiting_for_supervisors' && '🎯 في انتظار المشرفين'}
                                                     {course.enrollment_stage === 'waiting_for_teachers' && '👨‍🏫 في انتظار المعلمين'}
@@ -529,6 +530,10 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                     border-radius: 15px;
                     font-size: 0.8rem;
                     font-weight: 500;
+                }
+                .enrollment-stage.pending_publication {
+                    background: #e2e8f0;
+                    color: #475569;
                 }
                 .enrollment-stage.waiting_for_staff {
                     background: #fff3cd;

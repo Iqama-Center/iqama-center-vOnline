@@ -6,14 +6,14 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
     const [currentStep, setCurrentStep] = useState(1);
     
     // Zustand store for user management
-    const { 
+    const {
         users,
-        teachers, 
-        loading, 
-        error, 
+        teachers,
+        loading,
+        error,
         fetchUsers,
-        fetchTeachers, 
-        getTeachersFromUsers 
+        fetchTeachers,
+        getTeachersFromUsers
     } = useUserStore();
     const [course, setCourse] = useState({
         name: '',
@@ -48,9 +48,9 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
     const teacherUsers = getTeachersFromUsers(allUsers);
     
     // Define availableUsers for use throughout the component - prioritize all users
-    const availableUsers = allUsers.length > 0 ? allUsers : 
-                          users.length > 0 ? users : 
-                          teachers.length > 0 ? teachers : 
+    const availableUsers = allUsers.length > 0 ? allUsers :
+                          users.length > 0 ? users :
+                          teachers.length > 0 ? teachers :
                           teacherUsers.length > 0 ? teacherUsers : [];
 
     // Load all users when component mounts
@@ -103,7 +103,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 name: initialCourse.name || '',
                 description: initialCourse.description || '',
                 duration_days: initialCourse.duration_days || 7,
-                start_date: initialCourse.start_date || '',
+                start_date: initialCourse.start_date ? new Date(initialCourse.start_date).toISOString().split('T')[0] : '',
                 days_per_week: initialCourse.days_per_week || 5,
                 hours_per_day: initialCourse.hours_per_day || 2.0,
                 content_outline: initialCourse.content_outline || '',
@@ -246,7 +246,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
             );
             
             if (missingFields.length > 0) {
-                const missingFieldNames = missingFields.map(item => item.name).join('، ');
+                const missingFieldNames = missingFields.map(item => item.name).join(', ');
                 alert(`يرجى ملء الحقول المطلوبة التالية:\n${missingFieldNames}`);
                 return; // Don't proceed to next step
             }
@@ -1108,8 +1108,8 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                                                         }}
                                                     />
                                                     <span>{user.full_name}</span>
-                                                    <span style={{ 
-                                                        fontSize: '0.8rem', 
+                                                    <span style={{
+                                                        fontSize: '0.8rem',
                                                         color: '#64748b',
                                                         marginRight: 'auto'
                                                     }}>

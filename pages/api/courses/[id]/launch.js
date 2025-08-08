@@ -17,84 +17,45 @@ export default async function handler(req, res) {
         }
 
         const { id } = req.query;
-
-        // Begin transaction
-        await pool.query('BEGIN');
+        const client = await pool.connect();
 
         try {
-            // Update course status to launched
-            await pool.query(
+            await client.query('BEGIN');
+
+            // Step 1: Update course status to launched
+            await client.query(
                 'UPDATE courses SET is_launched = TRUE, status = $1, launched_at = CURRENT_TIMESTAMP WHERE id = $2',
                 ['active', id]
             );
 
-            // Update all waiting_start enrollments to active
-            await pool.query(`
+            // Step 2: Update all waiting_start enrollments to active
+            await client.query(`
                 UPDATE enrollments 
                 SET status = 'active' 
                 WHERE course_id = $1 AND status = 'waiting_start'
             `, [id]);
 
-            // Get all enrolled users for this course
-            const enrolledUsers = await pool.query(`
-                SELECT DISTINCT e.user_id, u.full_name, u.email 
+            // Step 3: Generate all daily tasks for the course using the new database function
+            await client.query('SELECT generate_daily_tasks_for_course($1)', [id]);
+
+            // Step 4: Get all enrolled users for notifications
+            const enrolledUsers = await client.query(`
+                SELECT DISTINCT e.user_id
                 FROM enrollments e 
-                JOIN users u ON e.user_id = u.id 
                 WHERE e.course_id = $1 AND e.status = 'active'`,
                 [id]
             );
 
-            // Create launch notifications for all participants
+            // Step 5: Create launch notifications for all participants
             for (const user of enrolledUsers.rows) {
-                await pool.query(`
+                await client.query(`
                     INSERT INTO notifications (user_id, type, message, related_id)
-                    VALUES ($1, $2, $3, $4)`,
-                    [
-                        user.user_id,
-                        'course_launched',
-                        `تم بدء انطلاق الدورة وهي الآن نشطة. يمكنك الآن الوصول إلى محتوى الأيام الدراسية والمشاركة في الأنشطة.`,
-                        id
-                    ]
+                    VALUES ($1, 'course_launched', 'تم بدء انطلاق الدورة وهي الآن نشطة. يمكنك الآن الوصول إلى محتوى الأيام الدراسية والمشاركة في الأنشطة.', $2)`,
+                    [user.user_id, id]
                 );
             }
 
-            // Create course message space
-            await pool.query(`
-                INSERT INTO course_messages (course_id, user_id, message, message_type)
-                VALUES ($1, $2, $3, $4)`,
-                [
-                    id,
-                    decoded.id,
-                    'مرحباً بكم في الدورة! هذه مساحة للتواصل والمشاركة بين جميع المشاركين.',
-                    'announcement'
-                ]
-            );
-
-            // Create tasks from templates for all enrolled participants
-            await pool.query('SELECT create_course_tasks_from_templates($1)', [id]);
-
-            // Initialize daily progress tracking
-            const courseDetails = await pool.query(
-                'SELECT duration_days, start_date FROM courses WHERE id = $1',
-                [id]
-            );
-            
-            if (courseDetails.rows.length > 0) {
-                const { duration_days, start_date } = courseDetails.rows[0];
-                
-                for (let day = 1; day <= duration_days; day++) {
-                    const dayDate = new Date(start_date);
-                    dayDate.setDate(dayDate.getDate() + (day - 1));
-                    
-                    await pool.query(`
-                        INSERT INTO course_daily_progress (course_id, day_number, date)
-                        VALUES ($1, $2, $3)
-                        ON CONFLICT (course_id, day_number) DO NOTHING
-                    `, [id, day, dayDate.toISOString().split('T')[0]]);
-                }
-            }
-
-            await pool.query('COMMIT');
+            await client.query('COMMIT');
 
             res.status(200).json({ 
                 message: 'تم بدء انطلاق الدورة بنجاح',
@@ -103,8 +64,10 @@ export default async function handler(req, res) {
             });
 
         } catch (error) {
-            await pool.query('ROLLBACK');
+            await client.query('ROLLBACK');
             throw error;
+        } finally {
+            client.release();
         }
 
     } catch (err) {

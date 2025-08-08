@@ -33,12 +33,12 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'اسم الدورة ووصفها مطلوبان' });
         }
 
-        // Begin transaction
-        await pool.query('BEGIN');
-
+        const client = await pool.connect();
         try {
+            await client.query('BEGIN');
+
             // Create the course
-            const courseResult = await pool.query(`
+            const courseResult = await client.query(`
                 INSERT INTO courses (
                     name, description, content_outline, duration_days, start_date, 
                     days_per_week, hours_per_day, created_by, details, 
@@ -56,11 +56,11 @@ export default async function handler(req, res) {
 
             const courseId = courseResult.rows[0].id;
 
-            // Create participant level configurations
+            // Create participant level configurations and enroll pre-selected users
             if (participant_config) {
                 for (const [levelKey, config] of Object.entries(participant_config)) {
                     const levelNumber = parseInt(levelKey.split('_')[1]);
-                    await pool.query(`
+                    await client.query(`
                         INSERT INTO course_participant_levels (
                             course_id, level_number, level_name, target_roles, 
                             min_count, max_count, optimal_count
@@ -70,68 +70,42 @@ export default async function handler(req, res) {
                             config.min, config.max, config.optimal
                         ]
                     );
-                }
-            }
 
-            // Create initial schedule days based on duration
-            if (duration_days && duration_days > 0) {
-                for (let day = 1; day <= duration_days; day++) {
-                    await pool.query(`
-                        INSERT INTO course_schedule (
-                            course_id, day_number, title, content_url, meeting_link
-                        ) VALUES ($1, $2, $3, $4, $5)`,
-                        [courseId, day, `اليوم الدراسي ${day}`, '', '']
-                    );
-                }
-            }
+                    // Enroll pre-selected users for this level
+                    if (config.preselected_users && config.preselected_users.enabled && config.preselected_users.users && config.preselected_users.users.length > 0) {
+                        for (const userId of config.preselected_users.users) {
+                            // Enroll the user and create payment record if applicable
+                            await client.query(`
+                                INSERT INTO enrollments (user_id, course_id, status, level_number, enrolled_at)
+                                VALUES ($1, $2, 'active', $3, NOW())
+                                ON CONFLICT (user_id, course_id) DO NOTHING;
+                            `, [parseInt(userId), courseId, levelNumber]);
 
-            // Create task templates if provided
-            if (req.body.taskTemplates) {
-                for (const [levelKey, templates] of Object.entries(req.body.taskTemplates)) {
-                    const levelNumber = parseInt(levelKey.split('_')[1]);
-                    
-                    for (const template of templates) {
-                        if (template.type && template.title) {
-                            await pool.query(`
-                                INSERT INTO course_task_templates (
-                                    course_id, level_number, task_type, title, 
-                                    description, default_instructions, max_score
-                                ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-                                [
-                                    courseId, levelNumber, template.type, template.title,
-                                    template.description || '', template.instructions || '', 
-                                    template.maxScore || 100
-                                ]
-                            );
+                            if (config.financial && config.financial.type === 'receive' && config.financial.amount > 0) {
+                                await client.query(`
+                                    INSERT INTO payments (enrollment_id, amount, currency, status, due_date, description)
+                                    SELECT e.id, $1, $2, 'pending_payout', NOW(), $3
+                                    FROM enrollments e
+                                    WHERE e.user_id = $4 AND e.course_id = $5;
+                                `, [-Math.abs(config.financial.amount), config.financial.currency || 'SAR', `مكافأة دورة: ${name}`, parseInt(userId), courseId]);
+                            }
                         }
                     }
                 }
             }
 
-            await pool.query('COMMIT');
+            await client.query('COMMIT');
 
-            const course = courseResult.rows[0];
-            
-            // Safe serialization for API response
-            const safeResponse = {
-                id: courseResult.rows[0].id, // Use the ID from the database result
-                name: courseResult.rows[0].name,
-                description: courseResult.rows[0].description,
-                created_at: courseResult.rows[0].created_at ? courseResult.rows[0].created_at.toISOString() : null,
-                start_date: courseResult.rows[0].start_date ? courseResult.rows[0].start_date.toISOString().split('T')[0] : null,
-                duration_days: courseResult.rows[0].duration_days,
-                days_per_week: courseResult.rows[0].days_per_week,
-                hours_per_day: courseResult.rows[0].hours_per_day,
-                status: courseResult.rows[0].status,
-                message: 'تم إنشاء الدورة بنجاح'
-            };
-            
-            console.log('Course created with ID:', safeResponse.id); // Debug log
-            res.status(201).json(safeResponse);
+            res.status(201).json({ 
+                message: 'تم إنشاء الدورة بنجاح', 
+                id: courseId 
+            });
 
         } catch (error) {
-            await pool.query('ROLLBACK');
+            await client.query('ROLLBACK');
             throw error;
+        } finally {
+            client.release();
         }
 
     } catch (err) {

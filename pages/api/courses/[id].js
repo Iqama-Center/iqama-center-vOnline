@@ -18,21 +18,7 @@ export default async function handler(req, res) {
 
     const userRole = decoded.role;
 
-    if (req.method === 'GET') {
-        try {
-            const courseResult = await pool.query('SELECT * FROM courses WHERE id = $1', [id]);
-            if (courseResult.rows.length === 0) {
-                return res.status(404).json({ message: 'الدورة غير موجودة.' });
-            }
-            const scheduleResult = await pool.query('SELECT * FROM course_schedule WHERE course_id = $1 ORDER BY day_number', [id]);
-            const course = courseResult.rows[0];
-            course.schedule = scheduleResult.rows;
-            res.status(200).json(course);
-        } catch (err) {
-            console.error(err);
-            res.status(500).json({ message: 'خطأ في الخادم.' });
-        }
-    } else if (req.method === 'PUT') {
+    if (req.method === 'PUT') {
         if (userRole !== 'admin' && userRole !== 'head') {
             return res.status(403).json({ message: 'غير مصرح لك بتعديل الدورات.' });
         }
@@ -54,8 +40,11 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'اسم الدورة مطلوب.' });
         }
         
+        const client = await pool.connect();
         try {
-            const result = await pool.query(`
+            await client.query('BEGIN');
+
+            const result = await client.query(`
                 UPDATE courses SET 
                     name = $1, 
                     description = $2, 
@@ -85,32 +74,47 @@ export default async function handler(req, res) {
             );
             
             if (result.rows.length === 0) {
+                await client.query('ROLLBACK');
                 return res.status(404).json({ message: 'الدورة غير موجودة.' });
             }
+
+            // Enroll pre-selected users and create payment records if applicable
+            if (participant_config) {
+                for (const [levelKey, config] of Object.entries(participant_config)) {
+                    if (config.preselected_users && config.preselected_users.enabled && config.preselected_users.users) {
+                        const levelNumber = parseInt(levelKey.split('_')[1]);
+                        for (const userId of config.preselected_users.users) {
+                            await client.query(`
+                                INSERT INTO enrollments (user_id, course_id, status, level_number, enrolled_at)
+                                VALUES ($1, $2, 'active', $3, NOW())
+                                ON CONFLICT (user_id, course_id) DO NOTHING;
+                            `, [parseInt(userId), id, levelNumber]);
+
+                            if (config.financial && config.financial.type === 'receive' && config.financial.amount > 0) {
+                                await client.query(`
+                                    INSERT INTO payments (enrollment_id, amount, currency, status, due_date, description)
+                                    SELECT e.id, $1, $2, 'pending_payout', NOW(), $3
+                                    FROM enrollments e
+                                    WHERE e.user_id = $4 AND e.course_id = $5;
+                                `, [-Math.abs(config.financial.amount), config.financial.currency || 'SAR', `مكافأة دورة: ${name}`, parseInt(userId), id]);
+                            }
+                        }
+                    }
+                }
+            }
+
+            await client.query('COMMIT');
             
-            console.log('Course updated successfully:', id);
             res.status(200).json({ 
                 message: 'تم تحديث الدورة بنجاح.', 
-                course: result.rows[0],
-                id: parseInt(id) // Ensure ID is returned for navigation
+                id: parseInt(id) 
             });
         } catch (err) {
+            await client.query('ROLLBACK');
             console.error("Update Course Error:", err);
             res.status(500).json({ message: 'حدث خطأ في الخادم.' });
-        }
-    } else if (req.method === 'DELETE') {
-        if (userRole !== 'admin' && userRole !== 'head') {
-            return res.status(403).json({ message: 'غير مصرح لك بحذف الدورات.' });
-        }
-        try {
-            const result = await pool.query('DELETE FROM courses WHERE id = $1 RETURNING *', [id]);
-            if (result.rows.length === 0) {
-                return res.status(404).json({ message: 'الدورة غير موجودة.' });
-            }
-            res.status(200).json({ message: 'تم حذف الدورة بنجاح.' });
-        } catch (err) {
-            console.error("Delete Course Error:", err);
-            res.status(500).json({ message: 'حدث خطأ في الخادم.' });
+        } finally {
+            client.release();
         }
     } else {
         res.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
