@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Layout from '../components/Layout';
 import { withAuth } from '../lib/withAuth';
 import pool from '../lib/db';
-import { getFilteredCourses } from '../lib/queryOptimizer';
+// getFilteredCourses function is available in the API route, not needed here
 
 const CoursesPage = ({ user, courses: initialCourses, enrolledCourses: initialEnrolledCourses }) => {
     const [courses, setCourses] = useState(initialCourses || []);
@@ -461,10 +461,31 @@ export const getServerSideProps = withAuth(async (context) => {
     
     try {
         // Get public courses data
-        const coursesResult = await getFilteredCourses(
-            { status: 'active', limit: 100 }, 
-            null // No user ID for static generation
-        );
+        const coursesResult = await pool.query(`
+            SELECT 
+                c.id,
+                c.name,
+                c.description,
+                c.details,
+                c.course_fee,
+                c.duration_days,
+                c.status,
+                c.created_at,
+                u.full_name as teacher_name,
+                COUNT(e.id) as current_enrollment,
+                CASE 
+                    WHEN COUNT(e.id) >= (c.details->>'max_students')::int THEN 'full'
+                    WHEN c.status = 'active' THEN 'available'
+                    ELSE 'unavailable'
+                END as availability_status
+            FROM courses c
+            LEFT JOIN users u ON c.teacher_id = u.id
+            LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
+            WHERE c.is_published = true AND c.status = 'active' AND c.teacher_id IS NOT NULL
+            GROUP BY c.id, c.name, c.description, c.details, c.course_fee, c.duration_days, c.status, c.created_at, u.full_name
+            ORDER BY c.created_at DESC
+            LIMIT 100
+        `);
 
         // Get course statistics
         const statsResult = await pool.query(`
@@ -507,7 +528,7 @@ export const getServerSideProps = withAuth(async (context) => {
         return {
             props: {
                 user: JSON.parse(JSON.stringify(user)),
-                courses: JSON.parse(JSON.stringify(coursesResult)),
+                courses: JSON.parse(JSON.stringify(coursesResult.rows)),
                 stats: JSON.parse(JSON.stringify(stats)),
                 categories: JSON.parse(JSON.stringify(categories)),
                 enrolledCourses: JSON.parse(JSON.stringify(enrolledCoursesResult.rows)),
@@ -515,7 +536,10 @@ export const getServerSideProps = withAuth(async (context) => {
             }
         };
     } catch (err) {
-        console.error('Courses page error:', err);
+        // Log error in development only
+        if (process.env.NODE_ENV === 'development') {
+            console.error('Courses page error:', err);
+        }
         
         return {
             props: {

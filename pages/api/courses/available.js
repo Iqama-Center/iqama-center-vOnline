@@ -27,6 +27,7 @@ async function handler(req, res) {
             FROM courses c
             LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
             WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true))
+            AND c.teacher_id IS NOT NULL
             AND NOT EXISTS (
                 SELECT 1 FROM enrollments e2 
                 WHERE e2.course_id = c.id 

@@ -1,4 +1,4 @@
-import scheduler from '../../../lib/internalScheduler.js';
+import scheduler from '../../../lib/internalScheduler';
 
 let isSchedulerStarted = false;
 

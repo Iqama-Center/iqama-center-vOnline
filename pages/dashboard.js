@@ -59,7 +59,7 @@ export const getServerSideProps = withAuth(async (context) => {
                 COUNT(CASE WHEN status = 'active' THEN 1 END) as active_courses,
                 COUNT(CASE WHEN status = 'published' THEN 1 END) as published_courses,
                 (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL) AND account_status = 'active') as total_teachers,
+                (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL)) as total_teachers,
                 (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_enrollments
             FROM courses 
             WHERE status IN ('active', 'published', 'draft')
@@ -75,7 +75,7 @@ export const getServerSideProps = withAuth(async (context) => {
                 c.status
             FROM courses c
             LEFT JOIN users u ON c.teacher_id = u.id
-            WHERE c.status IN ('active', 'published')
+            WHERE c.status IN ('active', 'published') AND c.teacher_id IS NOT NULL
             ORDER BY c.created_at DESC
             LIMIT 10
         `);
@@ -404,7 +404,7 @@ export const getServerSideProps = withAuth(async (context) => {
         try {
             const coursesResult = await pool.query(`
                 SELECT c.* FROM courses c
-                WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true))
+                WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true)) AND c.teacher_id IS NOT NULL
                 AND NOT EXISTS (
                     SELECT 1 FROM enrollments e WHERE e.course_id = c.id AND e.user_id = $1
                 )

@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 let scheduler;
 if (typeof window === 'undefined') {
   // Only import on server-side to avoid browser errors
-  scheduler = require('../lib/internalScheduler.js').default;
+  scheduler = require('../lib/internalScheduler').default;
 }
 import { Tajawal } from 'next/font/google';
 
@@ -32,8 +32,8 @@ function MyApp({ Component, pageProps }) {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          console.log('✅ Course automation scheduler is running');
-          console.log('📅 Features active:', data.features || [
+          console.log('Course automation scheduler is running');
+          console.log('Features active:', data.features || [
             'Daily task release',
             'Performance evaluation', 
             'Auto-launch checking'
@@ -41,7 +41,7 @@ function MyApp({ Component, pageProps }) {
         }
       })
       .catch(err => {
-        console.warn('⚠️ Scheduler start check failed:', err);
+        console.warn('Warning: Scheduler start check failed:', err);
         // Non-critical error, app can continue without scheduler
       });
     }

@@ -18,7 +18,7 @@ export default async function handler(req, res) {
                 END as availability_status
             FROM courses c
             LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
-            WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true))
+            WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true)) AND c.teacher_id IS NOT NULL
             GROUP BY c.id
             ORDER BY c.created_at DESC
         `);
