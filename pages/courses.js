@@ -538,11 +538,12 @@ export const getServerSideProps = withAuth(async (context) => {
             userLevel = 2; // درجة 2 (managers/teachers)
         }
 
-        let coursesResult = [];
+        let coursesResult; // Keep it as a single variable
 
         if (userLevel === 3) {
             // For درجة 3 users (students), only show courses where درجة 1 and 2 have enrolled
-            const result = await pool.query(`
+            // Assign the whole result object to coursesResult
+            coursesResult = await pool.query(`
                 SELECT 
                     c.id, 
                     c.name, 
@@ -578,13 +579,14 @@ export const getServerSideProps = withAuth(async (context) => {
                 ORDER BY c.created_at DESC
                 LIMIT 100
             `, [user.id]);
-            coursesResult = result.rows;
         } else {
             // For درجة 1 and 2 users, show all published courses
-            coursesResult = await getFilteredCourses(
+            // getFilteredCourses returns an array, so wrap it in an object with a 'rows' property
+            const courseRows = await getFilteredCourses(
                 { status: 'active', limit: 100 }, 
                 null // No user ID for static generation
             );
+            coursesResult = { rows: courseRows };
         }
 
         // Get course statistics
@@ -628,7 +630,7 @@ export const getServerSideProps = withAuth(async (context) => {
         return {
             props: {
                 user: JSON.parse(JSON.stringify(user)),
-                courses: JSON.parse(JSON.stringify(coursesResult)),
+                courses: JSON.parse(JSON.stringify(coursesResult.rows)),
                 stats: JSON.parse(JSON.stringify(stats)),
                 categories: JSON.parse(JSON.stringify(categories)),
                 enrolledCourses: JSON.parse(JSON.stringify(enrolledCoursesResult.rows)),
@@ -637,7 +639,10 @@ export const getServerSideProps = withAuth(async (context) => {
             }
         };
     } catch (err) {
-        console.error('Courses page error:', err);
+        // Log error in development only
+        if (process.env.NODE_ENV === 'development') {
+            console.error('Courses page error:', err);
+        }
         
         return {
             props: {

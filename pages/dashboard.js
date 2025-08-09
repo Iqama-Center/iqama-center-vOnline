@@ -75,7 +75,7 @@ export const getServerSideProps = withAuth(async (context) => {
                 c.status
             FROM courses c
             LEFT JOIN users u ON c.teacher_id = u.id
-            WHERE c.status IN ('active', 'published')
+            WHERE c.status IN ('active', 'published') AND c.teacher_id IS NOT NULL
             ORDER BY c.created_at DESC
             LIMIT 10
         `);
@@ -201,6 +201,7 @@ export const getServerSideProps = withAuth(async (context) => {
             const coursesRes = await pool.query(`SELECT c.id, c.name, e.status, c.status as course_status FROM courses c JOIN enrollments e ON c.id = e.course_id WHERE e.user_id = $1 AND e.status IN ('active', 'waiting_start', 'completed', 'pending_payment', 'pending_approval') ORDER BY c.name ASC;`, [user.id]);
             props.courses = safeSerialize(coursesRes.rows);
             // ... (بقية منطق الطالب)
+        }
         }
 
         // --- الحفاظ على منطق الملف الأول: بيانات دور المعلم (Teacher) ---

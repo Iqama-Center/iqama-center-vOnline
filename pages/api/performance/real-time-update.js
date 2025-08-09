@@ -1,6 +1,6 @@
 import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
-import { updateUserPerformanceRealTime, updateCoursePerformanceRealTime } from '../../../lib/performanceUpdater.js';
+import { updateUserPerformanceRealTime, updateCoursePerformanceRealTime } from '../../../lib/performanceUpdater';
 import errorHandler from '../../../lib/errorHandler';
 
 export default async function handler(req, res) {

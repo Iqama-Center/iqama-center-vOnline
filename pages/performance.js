@@ -133,7 +133,7 @@ export const getServerSideProps = withAuth(async (context) => {
                     ELSE NULL END) as avg_completion_days
             FROM courses c
             LEFT JOIN enrollments e ON c.id = e.course_id
-            WHERE c.status IN ('active', 'published')
+            WHERE c.status IN ('active', 'published') AND c.teacher_id IS NOT NULL
             AND c.created_at >= CURRENT_DATE - INTERVAL '12 months'
         `);
 
