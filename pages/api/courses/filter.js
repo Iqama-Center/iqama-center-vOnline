@@ -1,6 +1,6 @@
 import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
-import { getFilteredCourses, getUserById } from '../../../lib/queryOptimizer';
+// Removed import of non-existent function
 
 export default async function handler(req, res) {
     if (req.method !== 'GET') {
@@ -12,16 +12,19 @@ export default async function handler(req, res) {
     let userDetails = {};
 
     // Get user details if authenticated
-    if (token) {
+    if (token && process.env.JWT_SECRET) {
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const user = await getUserById(decoded.id, ['id', 'details']);
-            if (user) {
+            const userResult = await pool.query('SELECT id, details FROM users WHERE id = $1', [decoded.id]);
+            if (userResult.rows.length > 0) {
                 userId = decoded.id;
-                userDetails = user.details || {};
+                userDetails = userResult.rows[0].details || {};
             }
         } catch (err) {
             // Continue without user context
+            if (process.env.NODE_ENV === 'development') {
+                console.log('JWT verification failed:', err.message);
+            }
         }
     }
 
@@ -53,7 +56,7 @@ export default async function handler(req, res) {
             offset: parseInt(offset)
         };
 
-        const courses = await getFilteredCourses(filters, userId);
+        const courses = await getFilteredCoursesQuery(filters, userId);
 
         // Add eligibility check if user is authenticated
         const processedCourses = courses.map(course => {
@@ -73,7 +76,10 @@ export default async function handler(req, res) {
 
         res.status(200).json(processedCourses);
     } catch (err) {
-        console.error('Filter courses error:', err);
+        // Log error in development only
+        if (process.env.NODE_ENV === 'development') {
+            console.error('Filter courses error:', err);
+        }
         res.status(500).json({ message: 'خطأ في تحميل الدورات' });
     }
 }
@@ -133,4 +139,91 @@ function getEligibilityReasons(course, userDetails) {
     }
     
     return reasons;
+}
+
+// Implement the filtered courses query directly
+async function getFilteredCoursesQuery(filters, userId) {
+    let whereConditions = ['c.is_published = true', 'c.teacher_id IS NOT NULL'];
+    let queryParams = [];
+    let paramIndex = 1;
+
+    // Add filters
+    if (filters.role) {
+        whereConditions.push(`c.details->>'target_role' = $${paramIndex}`);
+        queryParams.push(filters.role);
+        paramIndex++;
+    }
+
+    if (filters.gender && filters.gender !== 'both') {
+        whereConditions.push(`(c.details->>'gender' = $${paramIndex} OR c.details->>'gender' = 'both' OR c.details->>'gender' IS NULL)`);
+        queryParams.push(filters.gender);
+        paramIndex++;
+    }
+
+    if (filters.age_min) {
+        whereConditions.push(`(c.details->>'max_age')::int >= $${paramIndex} OR c.details->>'max_age' IS NULL`);
+        queryParams.push(parseInt(filters.age_min));
+        paramIndex++;
+    }
+
+    if (filters.age_max) {
+        whereConditions.push(`(c.details->>'min_age')::int <= $${paramIndex} OR c.details->>'min_age' IS NULL`);
+        queryParams.push(parseInt(filters.age_max));
+        paramIndex++;
+    }
+
+    if (filters.country) {
+        whereConditions.push(`c.details->>'target_country' = $${paramIndex} OR c.details->>'target_country' IS NULL`);
+        queryParams.push(filters.country);
+        paramIndex++;
+    }
+
+    if (filters.price_min) {
+        whereConditions.push(`c.course_fee >= $${paramIndex}`);
+        queryParams.push(parseFloat(filters.price_min));
+        paramIndex++;
+    }
+
+    if (filters.price_max) {
+        whereConditions.push(`c.course_fee <= $${paramIndex}`);
+        queryParams.push(parseFloat(filters.price_max));
+        paramIndex++;
+    }
+
+    if (filters.status) {
+        whereConditions.push(`c.status = $${paramIndex}`);
+        queryParams.push(filters.status);
+        paramIndex++;
+    }
+
+    const query = `
+        SELECT 
+            c.id,
+            c.name,
+            c.description,
+            c.details,
+            c.course_fee,
+            c.duration_days,
+            c.status,
+            c.created_at,
+            u.full_name as teacher_name,
+            COUNT(e.id) as current_enrollment,
+            CASE 
+                WHEN COUNT(e.id) >= (c.details->>'max_students')::int THEN 'full'
+                WHEN c.status = 'active' THEN 'available'
+                ELSE 'unavailable'
+            END as availability_status
+        FROM courses c
+        LEFT JOIN users u ON c.teacher_id = u.id
+        LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
+        WHERE ${whereConditions.join(' AND ')}
+        GROUP BY c.id, c.name, c.description, c.details, c.course_fee, c.duration_days, c.status, c.created_at, u.full_name
+        ORDER BY c.created_at DESC
+        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+
+    queryParams.push(filters.limit || 50, filters.offset || 0);
+
+    const result = await pool.query(query, queryParams);
+    return result.rows;
 }

@@ -82,7 +82,7 @@ export async function getStaticProps() {
                 SELECT 
                     (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_courses,
                     (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND account_status = 'active') as total_teachers,
+                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL)) as total_teachers,
                     (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_courses
             ),
             featured AS (
@@ -94,7 +94,7 @@ export async function getStaticProps() {
                 FROM courses c
                 LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
                 LEFT JOIN users u ON c.teacher_id = u.id
-                WHERE c.status IN ('active', 'published')
+                WHERE c.status IN ('active', 'published') AND c.teacher_id IS NOT NULL
                 GROUP BY c.id, c.name, c.description, c.details, c.created_at, c.course_fee, c.duration_days, u.full_name
                 ORDER BY enrolled_count DESC, c.created_at DESC
                 LIMIT 6

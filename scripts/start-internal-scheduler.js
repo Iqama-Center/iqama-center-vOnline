@@ -1,5 +1,5 @@
 // Start internal scheduler (works on any hosting)
-import scheduler from '../lib/internalScheduler.js';
+import scheduler from '../lib/internalScheduler';
 
 console.log('🚀 Starting Course Management Internal Scheduler...');
 console.log('📅 This will handle:');

@@ -1,7 +1,7 @@
 import pool from '../../../../lib/db';
 import jwt from 'jsonwebtoken';
 import { parse } from 'cookie';
-import { updateUserPerformanceRealTime, updatePerformanceAfterExam } from '../../../../lib/performanceUpdater.js';
+import { updateUserPerformanceRealTime, updatePerformanceAfterExam } from '../../../../lib/performanceUpdater';
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
