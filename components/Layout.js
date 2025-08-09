@@ -9,22 +9,25 @@ const Sidebar = ({ user, currentPath, isMobile, sidebarExpanded, setSidebarExpan
     const navLinks = [
         { href: '/dashboard', text: 'لوحة التحكم', icon: 'fa-tachometer-alt', roles: ['admin', 'student', 'teacher', 'parent', 'head', 'finance', 'worker'] },
         { href: '/courses', text: 'الدورات', icon: 'fa-book', roles: ['student', 'teacher', 'worker', 'parent'] },
-        { href: '/teacher/my-courses', text: 'دوراتي', icon: 'fa-chalkboard-teacher', roles: ['teacher'] },
-        { title: 'إدارة النظام', roles: ['admin', 'finance'] },
+        { href: '/teacher/my-courses', text: 'دوراتي', icon: 'fa-chalkboard-teacher', roles: ['teacher', 'head', 'admin'] },
+        
+        // Section: Admin & Finance
+        { title: 'إدارة النظام', roles: ['admin', 'head', 'finance'] },
         { href: '/admin/users', text: 'إدارة المستخدمين', icon: 'fa-users-cog', roles: ['admin'] },
-        { href: '/admin/courses/manage', text: 'إدارة الدورات الشاملة', icon: 'fa-cogs', roles: ['admin', 'head'] },
-        { href: '/admin/enrollments', text: 'موافقات التسجيل', icon: 'fa-user-check', roles: ['admin', 'head'] },
+        { href: '/admin/courses/manage', text: 'إدارة الدورات', icon: 'fa-cogs', roles: ['admin', 'head'] },
+        { href: '/admin/enrollments', text: 'إدارة التسجيلات', icon: 'fa-user-check', roles: ['admin', 'head', 'finance'] },
         { href: '/finance', text: 'إدارة المدفوعات', icon: 'fa-money-bill-wave', roles: ['admin', 'finance'] },
         { href: '/admin/requests', text: 'طلبات التعديل', icon: 'fa-check-square', roles: ['admin'] },
+        
+        // Section: Worker
         { title: 'إدارة العمل', roles: ['worker'] },
         { href: '/worker/tasks', text: 'مهامي', icon: 'fa-tasks', roles: ['worker'] },
         { href: '/worker/schedule', text: 'جدولي', icon: 'fa-calendar-alt', roles: ['worker'] },
-        { href: '/worker/reports', text: 'التقارير', icon: 'fa-file-alt', roles: ['worker'] },
-        { href: '/worker/attendance', text: 'الحضور والانصراف', icon: 'fa-clock', roles: ['worker'] },
-        { href: '/worker/performance', text: 'تقييم الأداء', icon: 'fa-chart-bar', roles: ['worker'] },
+        
+        // Section: General
         { title: 'عام', roles: ['admin', 'student', 'teacher', 'parent', 'head', 'finance', 'worker'] },
         { href: '/messages', text: 'الرسائل', icon: 'fa-envelope', roles: ['admin', 'student', 'teacher', 'parent', 'head', 'finance', 'worker'] },
-        { href: '/student-finance', text: 'المالية', icon: 'fa-wallet', roles: ['student', 'parent', 'worker'] },
+        { href: '/student-finance', text: 'المالية', icon: 'fa-wallet', roles: ['student', 'parent'] },
         { href: '/performance', text: 'تقارير الأداء', icon: 'fa-chart-line', roles: ['student', 'parent'] },
         { href: '/completed-courses', text: 'السجل الدراسي', icon: 'fa-history', roles: ['student', 'parent'] },
         { href: '/profile', text: 'الملف الشخصي', icon: 'fa-user-circle', roles: ['admin', 'student', 'teacher', 'parent', 'head', 'finance', 'worker'] },

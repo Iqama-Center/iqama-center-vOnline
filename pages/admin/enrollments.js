@@ -132,7 +132,7 @@ const EnrollmentApprovalsPage = ({ user }) => {
                                             <button className="btn btn-reject" onClick={() => handleApproval(enrollment.id, 'reject')}>رفض</button>
                                         </>
                                     )}
-                                    <button className="btn btn-fix" onClick={() => handleFixStatus(enrollment.id)}>تأكيد التسجيل يدويًا</button>
+                                    <button className="btn btn-fix" onClick={() => handleFixStatus(enrollment.id)}>إصلاح الحالة يدويًا</button>
                                 </div>
                             </div>
                         ))}
@@ -145,7 +145,7 @@ const EnrollmentApprovalsPage = ({ user }) => {
 
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
-    if (!['admin', 'head'].includes(user.role)) {
+    if (!['admin', 'head', 'finance'].includes(user.role)) {
         return { redirect: { destination: '/dashboard', permanent: false } };
     }
     return { props: { user } };
