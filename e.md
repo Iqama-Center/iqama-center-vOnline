@@ -1,1 +1,0 @@
-Check that المالية التي أضعها أثناء إنشاء الدورة is applied when the users apply for the course 

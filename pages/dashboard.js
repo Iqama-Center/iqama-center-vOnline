@@ -202,7 +202,6 @@ export const getServerSideProps = withAuth(async (context) => {
             props.courses = safeSerialize(coursesRes.rows);
             // ... (بقية منطق الطالب)
         }
-        }
 
         // --- الحفاظ على منطق الملف الأول: بيانات دور المعلم (Teacher) ---
         if (user.role === 'teacher') {

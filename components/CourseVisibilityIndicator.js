@@ -1,19 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 
 const CourseVisibilityIndicator = ({ course, userLevel }) => {
     const [enrollmentStatus, setEnrollmentStatus] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        if (userLevel === 3) {
-            // For degree 3 users, check why course might not be visible
-            checkCourseEnrollmentStatus();
-        } else {
-            setLoading(false);
-        }
-    }, [course.id, userLevel]);
-
-    const checkCourseEnrollmentStatus = async () => {
+    const checkCourseEnrollmentStatus = useCallback(async () => {
         try {
             const response = await fetch(`/api/courses/${course.id}/enrollment-status`);
             if (response.ok) {
@@ -25,7 +16,16 @@ const CourseVisibilityIndicator = ({ course, userLevel }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [course.id]);
+
+    useEffect(() => {
+        if (userLevel === 3) {
+            // For degree 3 users, check why course might not be visible
+            checkCourseEnrollmentStatus();
+        } else {
+            setLoading(false);
+        }
+    }, [course.id, userLevel, checkCourseEnrollmentStatus]);
 
     // Don't show indicator for degree 1 and 2 users (they see all courses)
     if (userLevel !== 3) {
