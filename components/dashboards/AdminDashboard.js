@@ -172,6 +172,16 @@ const AdminDashboard = ({ user, stats, recentUsers, recentCourses, pendingReques
                         <small><i className="fas fa-arrow-left"></i> انقر للعرض</small>
                     </div>
                 </div>
+                <div className="stat-card clickable" onClick={() => handleNavigation('/BookCreate.html')}>
+                    <div className="stat-icon">
+                        <i className="fas fa-book-open"></i>
+                    </div>
+                    <div className="stat-content">
+                        <h3>محرر الكتب</h3>
+                        <p className="stat-number"><i className="fas fa-edit"></i></p>
+                        <small>محرر الكتب الاحترافي مع دعم الطباعة</small>
+                    </div>
+                </div>
             </div>
 
             {/* Debug Info */}
