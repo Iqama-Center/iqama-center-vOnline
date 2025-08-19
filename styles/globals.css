@@ -1,5 +1,45 @@
 /* ================== CSS الرئيسي للمنصة - مجمع ومنقح بالكامل ================== */
 
+/* Day Selector and Tasks UI */
+.day-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+}
+
+.day-selector button {
+  padding: 10px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  color: #374151;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 80px;
+}
+
+.day-selector button:hover {
+  border-color: #3b82f6;
+  background: #f8fafc;
+  color: #1e40af;
+}
+
+.day-selector button.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
+}
+
+.day-content {
+  margin-top: 16px;
+}
+
 /* Tasks (مهامك لهذا اليوم) UI */
 .task-card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
 .task-card__header { display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px; gap: 8px; }
@@ -17,10 +57,88 @@
 .badge-default { background: #f3f4f6; color:#374151; border: 1px solid #e5e7eb; }
 .tasks-list { display:flex; flex-direction: column; gap: 12px; }
 .tasks-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-.section-header { display:flex; align-items: baseline; justify-content: space-between; }
-.section-title { font-weight: 800; margin: 0; }
+.section-header { display:flex; align-items: baseline; justify-content: space-between; margin-bottom: 16px; }
+.section-title { font-weight: 800; margin: 0; font-size: 1.25rem; color: #1f2937; }
 .section-subtitle { color:#6b7280; font-size: 0.85rem; }
 .empty-state { padding: 12px; border:1px dashed #d1d5db; border-radius: 8px; color:#6b7280; text-align: center; }
+
+/* Daily Gradebook Styles */
+.gradebook-container {
+  margin-top: 32px;
+  padding: 20px;
+  background: #f9fafb;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.gradebook-container h3 {
+  margin: 0 0 16px 0;
+  color: #1f2937;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.gradebook-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.gradebook-table th,
+.gradebook-table td {
+  padding: 12px;
+  text-align: right;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.gradebook-table th {
+  background: #f3f4f6;
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.9rem;
+}
+
+.gradebook-table tr:hover {
+  background: #f9fafb;
+}
+
+.grade-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.grade-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+/* Submission Display Styles */
+.submission-display {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.submission-content {
+  background: #fff;
+  padding: 8px;
+  border-radius: 4px;
+  border: 1px solid #e5e7eb;
+  margin-top: 8px;
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  color: #374151;
+}
 
 
 /* --- 1. استيراد الخطوط (يجب أن يكون في الأعلى دائمًا) --- */
