@@ -4,45 +4,95 @@ import { withAuth } from '../../lib/withAuth';
 import pool from '../../lib/db';
 import { safeSerialize } from '../../lib/isrUtils';
 
-// This is a generic component to display a single task
+// Formatting helper for Arabic locale
+const formatDateTimeAr = (value) => {
+    if (!value) return '';
+    const d = typeof value === 'string' ? new Date(value) : value;
+    return d.toLocaleString('ar-EG', { hour12: false });
+};
+
+// Generic task item with improved UI
 const TaskItem = ({ task, onUpdate }) => {
     const [submissionContent, setSubmissionContent] = useState(task.submission_content || '');
     const [message, setMessage] = useState('');
+    const [submitting, setSubmitting] = useState(false);
 
     const handleSubmit = async () => {
-        const response = await fetch(`/api/tasks/${task.id}/submit`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ submission_content: submissionContent })
-        });
-        const result = await response.json();
-        if (response.ok) {
-            setMessage('تم التقديم بنجاح!');
-            onUpdate(task.id, { submission_content: submissionContent, status: 'submitted' });
-        } else {
-            setMessage(result.message || 'حدث خطأ ما.');
+        setSubmitting(true);
+        try {
+            const response = await fetch(`/api/tasks/${task.id}/submit`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ submission_content: submissionContent })
+            });
+            const result = await response.json();
+            if (response.ok) {
+                setMessage('تم التقديم بنجاح!');
+                onUpdate(task.id, { submission_content: submissionContent, status: 'submitted' });
+            } else {
+                setMessage(result.message || 'حدث خطأ ما.');
+            }
+        } finally {
+            setSubmitting(false);
         }
     };
 
+    const status = (task.status || '').toLowerCase();
+
     return (
-        <div className="task-item">
-            <h4>{task.title}</h4>
-            <p>{task.description}</p>
-            {message && <div className="task-message">{message}</div>}
-            {task.task_type === 'submission' && task.status === 'pending' && (
-                <div>
-                    <textarea 
+        <div className="task-card">
+            <div className="task-card__header">
+                <h4 className="task-title">{task.title}</h4>
+                {status && (
+                    <span className={`badge ${
+                        status === 'pending' ? 'badge-pending' :
+                        status === 'submitted' ? 'badge-submitted' :
+                        status === 'graded' ? 'badge-graded' : 'badge-default'
+                    }`}>{task.status}</span>
+                )}
+            </div>
+
+            {task.description && <p className="task-desc">{task.description}</p>}
+
+            <div className="task-meta">
+                {task.due_date && (
+                    <div>
+                        <span className="task-meta__label">موعد التسليم:</span>
+                        <span>{formatDateTimeAr(task.due_date)}</span>
+                    </div>
+                )}
+                {task.task_type && (
+                    <div>
+                        <span className="task-meta__label">النوع:</span>
+                        <span>{task.task_type}</span>
+                    </div>
+                )}
+            </div>
+
+            {message && <div className="task-message success">{message}</div>}
+
+            {task.task_type === 'submission' && status === 'pending' && (
+                <div className="task-actions">
+                    <textarea
+                        className="task-input"
                         value={submissionContent}
                         onChange={(e) => setSubmissionContent(e.target.value)}
                         placeholder="أدخل تقديمك هنا..."
+                        rows={4}
                     />
-                    <button onClick={handleSubmit}>تقديم</button>
+                    <button className="btn btn-primary" disabled={submitting || !submissionContent.trim()} onClick={handleSubmit}>
+                        {submitting ? 'جارٍ الإرسال...' : 'تقديم'}
+                    </button>
                 </div>
             )}
-            {task.status !== 'pending' && (
+
+            {status !== 'pending' && (
                 <div className="submission-display">
-                    <strong>حالة التقديم:</strong> {task.status}
-                    {task.submission_content && <pre>{task.submission_content}</pre>}
+                    <div className="task-meta__label">حالة التقديم:</div>
+                    <div>{task.status}</div>
+                    {task.submission_content && (
+                        <pre className="submission-content">{task.submission_content}</pre>
+                    )}
                 </div>
             )}
         </div>
@@ -115,8 +165,16 @@ const CoursePage = ({ user, course, initialSchedule, initialTasks, students }) =
             return (
                 <div>
                     <div className="tasks-list">
-                        <h4>مهامك لهذا اليوم:</h4>
-                        {teacherTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
+                        <div className="section-header">
+                            <h4 className="section-title">مهامك لهذا اليوم</h4>
+                            <span className="section-subtitle">عرض منظم حسب النوع والحالة</span>
+                        </div>
+                        {teacherTasks.length === 0 && (
+                            <div className="empty-state">لا توجد مهام اليوم</div>
+                        )}
+                        <div className="tasks-grid">
+                            {teacherTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
+                        </div>
                     </div>
                     <DailyGradebook 
                         students={students}
@@ -128,8 +186,16 @@ const CoursePage = ({ user, course, initialSchedule, initialTasks, students }) =
         } else {
             return (
                 <div className="tasks-list">
-                    <h4>مهامك لهذا اليوم:</h4>
-                    {userTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
+                    <div className="section-header">
+                        <h4 className="section-title">مهامك لهذا اليوم</h4>
+                        <span className="section-subtitle">عرض منظم حسب النوع والحالة</span>
+                    </div>
+                    {userTasks.length === 0 && (
+                        <div className="empty-state">لا توجد مهام اليوم</div>
+                    )}
+                    <div className="tasks-grid">
+                        {userTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
+                    </div>
                 </div>
             );
         }
