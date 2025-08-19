@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start:scheduler": "node scripts/start-internal-scheduler.js && node scripts/start-assignments-scheduler.js",
+    "test:assignments": "node scripts/test_assignments.js",
+    "test": "npm run test:assignments"
   },
   "keywords": [],
   "author": "",
@@ -24,12 +26,15 @@
     "multer": "^2.0.1",
     "next": "^15.4.1",
     "next-connect": "^1.0.0",
+    "node-cron": "^3.0.3",
     "pg": "^8.11.3",
     "pusher": "^5.2.0",
     "pusher-js": "^8.4.0",
     "react": "^19.1.0",
     "react-chartjs-2": "^5.3.0",
     "react-dom": "^19.1.0",
+    "react-hook-form": "^7.62.0",
+    "zod": "^3.25.76",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
