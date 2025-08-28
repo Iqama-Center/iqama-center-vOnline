@@ -153,11 +153,18 @@ const TeacherTasksPage = ({ user, courses, tasks }) => {
                                             required
                                         >
                                             <option value="">اختر الدورة</option>
-                                            {courses.map(course => (
-                                                <option key={course.id} value={course.id}>
-                                                    {course.name}
-                                                </option>
-                                            ))}
+                                            {courses.map(course => {
+                                                const statusText = course.is_launched ? 'مُطلقة' : 
+                                                                 course.is_published ? 'منشورة' : 'مسودة';
+                                                const enrollmentText = course.current_enrollment ? 
+                                                    ` (${course.current_enrollment}/${course.max_enrollment} طالب)` : '';
+                                                
+                                                return (
+                                                    <option key={course.id} value={course.id}>
+                                                        {course.name} - {statusText}{enrollmentText}
+                                                    </option>
+                                                );
+                                            })}
                                         </select>
                                     </div>
 
@@ -619,11 +626,31 @@ export const getServerSideProps = withAuth(async (context) => {
     }
 
     try {
-        // Get teacher's courses
-        const coursesResult = await pool.query(
-            'SELECT id, name FROM courses WHERE created_by = $1 AND status = $2',
-            [user.id, 'active']
-        );
+        // Get teacher's courses - include all published and launched courses
+        const coursesResult = await pool.query(`
+            SELECT 
+                id, 
+                name,
+                status,
+                is_published,
+                is_launched,
+                current_enrollment,
+                max_enrollment
+            FROM courses 
+            WHERE (created_by = $1 OR teacher_id = $1)
+            AND (
+                is_published = true 
+                OR is_launched = true 
+                OR status IN ('active', 'published', 'launched')
+            )
+            ORDER BY 
+                CASE 
+                    WHEN is_launched = true THEN 1
+                    WHEN is_published = true THEN 2
+                    ELSE 3
+                END,
+                name ASC
+        `, [user.id]);
 
         // Get teacher's tasks with submission counts
         const tasksResult = await pool.query(`
@@ -632,7 +659,7 @@ export const getServerSideProps = withAuth(async (context) => {
                 c.name as course_name,
                 COUNT(ts.id) as submission_count
             FROM tasks t
-            LEFT JOIN courses c ON c.created_by = t.created_by
+            LEFT JOIN courses c ON c.id = t.course_id
             LEFT JOIN task_submissions ts ON t.id = ts.task_id
             WHERE t.created_by = $1
             GROUP BY t.id, c.name

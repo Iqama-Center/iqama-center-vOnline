@@ -109,11 +109,18 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
                         className="form-control"
                     >
                         <option value="">-- اختر دورة --</option>
-                        {courses.map(course => (
-                            <option key={course.id} value={course.id}>
-                                {course.name}
-                            </option>
-                        ))}
+                        {courses.map(course => {
+                            const statusText = course.is_launched ? 'مُطلقة' : 
+                                             course.is_published ? 'منشورة' : 'مسودة';
+                            const enrollmentText = course.current_enrollment ? 
+                                ` (${course.current_enrollment}/${course.max_enrollment} طالب)` : '';
+                            
+                            return (
+                                <option key={course.id} value={course.id}>
+                                    {course.name} - {statusText}{enrollmentText}
+                                </option>
+                            );
+                        })}
                     </select>
                 </div>
 
@@ -365,10 +372,55 @@ export const getServerSideProps = withAuth(async (context) => {
         let queryParams = [];
 
         if (user.role === 'teacher') {
-            coursesQuery = 'SELECT id, name FROM courses WHERE created_by = $1 AND status = \'active\'';
+            coursesQuery = `
+                SELECT 
+                    id, 
+                    name,
+                    status,
+                    is_published,
+                    is_launched,
+                    current_enrollment,
+                    max_enrollment
+                FROM courses 
+                WHERE (created_by = $1 OR teacher_id = $1)
+                AND (
+                    is_published = true 
+                    OR is_launched = true 
+                    OR status IN ('active', 'published', 'launched')
+                )
+                ORDER BY 
+                    CASE 
+                        WHEN is_launched = true THEN 1
+                        WHEN is_published = true THEN 2
+                        ELSE 3
+                    END,
+                    name ASC
+            `;
             queryParams = [user.id];
         } else {
-            coursesQuery = 'SELECT id, name FROM courses WHERE status = \'active\'';
+            coursesQuery = `
+                SELECT 
+                    id, 
+                    name,
+                    status,
+                    is_published,
+                    is_launched,
+                    current_enrollment,
+                    max_enrollment
+                FROM courses 
+                WHERE (
+                    is_published = true 
+                    OR is_launched = true 
+                    OR status IN ('active', 'published', 'launched')
+                )
+                ORDER BY 
+                    CASE 
+                        WHEN is_launched = true THEN 1
+                        WHEN is_published = true THEN 2
+                        ELSE 3
+                    END,
+                    name ASC
+            `;
         }
 
         const coursesResult = await pool.query(coursesQuery, queryParams);
