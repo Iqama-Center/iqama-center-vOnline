@@ -187,6 +187,10 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
                 );
             case 3:
                 return true; // Auto-fill is optional
+            case 4:
+                return true; // Task preview is optional
+            case 5:
+                return true; // Final review
             default:
                 return true;
         }
@@ -210,9 +214,34 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
         e.preventDefault();
         if (validateStep(currentStep)) {
             try {
-                await onSubmit(formData);
-                setMessage({ text: 'تم إنشاء الدورة بنجاح!', type: 'success' });
+                // Include generated tasks and schedule in the submission
+                const submissionData = {
+                    ...formData,
+                    taskGenerationEnabled: true
+                };
+                
+                const response = await fetch('/api/courses/create-with-tasks', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(submissionData),
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    setMessage({ text: `تم إنشاء الدورة بنجاح! تم توليد ${result.tasksGenerated || 0} مهمة تلقائياً`, type: 'success' });
+                    
+                    // Redirect to course management after success
+                    setTimeout(() => {
+                        window.location.href = `/admin/courses/${result.courseId}`;
+                    }, 2000);
+                } else {
+                    setMessage({ text: result.message || 'حدث خطأ في إنشاء الدورة', type: 'error' });
+                }
             } catch (error) {
+                console.error('Course creation error:', error);
                 setMessage({ text: 'حدث خطأ في إنشاء الدورة', type: 'error' });
             }
         }
