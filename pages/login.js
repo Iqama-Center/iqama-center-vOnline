@@ -12,28 +12,53 @@ export default function LoginPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setMessage(null);
+    e.stopPropagation();
+    
+    // Prevent form submission if fields are empty
+    if (!emailOrPhone || !password) {
+      setMessage('يرجى ملء جميع الحقول المطلوبة');
+      setIsError(true);
+      return;
+    }
+
+    setMessage('جاري تسجيل الدخول...');
     setIsError(false);
 
     try {
       const response = await fetch('/api/auth/login', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailOrPhone, password }),
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'same-origin',
+        body: JSON.stringify({ 
+          emailOrPhone: emailOrPhone.trim(), 
+          password: password 
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
 
       const result = await response.json();
 
-      if (response.ok) {
-        router.push(result.redirectTo);
+      if (result.redirectTo) {
+        setMessage('تم تسجيل الدخول بنجاح! جاري التوجيه...');
+        setIsError(false);
+        
+        // Use window.location for more reliable redirect
+        setTimeout(() => {
+          window.location.href = result.redirectTo;
+        }, 1000);
       } else {
-        setMessage(result.message);
-        setIsError(true);
-        // Scroll to top to show error message
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        throw new Error('لم يتم تحديد صفحة التوجيه');
       }
     } catch (err) {
-      setMessage('لا يمكن الاتصال بالخادم.');
+      console.error('Login error:', err);
+      setMessage(err.message || 'لا يمكن الاتصال بالخادم.');
       setIsError(true);
       // Scroll to top to show error message
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -54,17 +79,18 @@ export default function LoginPage() {
               {message}
             </div>
           )}
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} method="POST" action="#">
             <div className="form-group">
-              <label htmlFor="emailOrPhone">البريد الإلكتروني</label>
+              <label htmlFor="emailOrPhone">البريد الإلكتروني أو رقم الهاتف</label>
               <input
-                type="email"
+                type="text"
                 id="emailOrPhone"
                 name="emailOrPhone"
                 value={emailOrPhone}
                 onChange={(e) => setEmailOrPhone(e.target.value)}
-                placeholder="example@gmail.com"
+                placeholder="example@gmail.com أو 01234567890"
                 required
+                autoComplete="username"
               />
             </div>
             <div className="form-group">
@@ -76,9 +102,12 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                autoComplete="current-password"
               />
             </div>
-            <button type="submit">دخول</button>
+            <button type="submit" disabled={!emailOrPhone || !password}>
+              {message && message.includes('جاري') ? 'جاري تسجيل الدخول...' : 'دخول'}
+            </button>
           </form>
           <p className="form-link">
             ليس لديك حساب؟ <Link href="/signup">إنشاء حساب جديد</Link>
@@ -132,6 +161,15 @@ export default function LoginPage() {
           border-radius: 5px;
           cursor: pointer;
           font-size: 1rem;
+          transition: background-color 0.3s ease;
+        }
+        button:hover:not(:disabled) {
+          background-color: #004494;
+        }
+        button:disabled {
+          background-color: #6c757d;
+          cursor: not-allowed;
+          opacity: 0.7;
         }
         .message {
           text-align: center;
