@@ -1,6 +1,5 @@
 import React from 'react';
 import Link from 'next/link';
-import TaskManagement from '../TaskManagement';
 
 const TeacherDashboard = ({ user, courses, stats }) => {
     return (
@@ -80,12 +79,11 @@ const TeacherDashboard = ({ user, courses, stats }) => {
                 .action-btn:hover {
                     background-color: #138496;
                 }
-                .tasks-section, .courses-section {
+                .courses-section {
                     background: #fff;
                     padding: 25px;
                     border-radius: 8px;
                     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-                    margin-bottom: 30px;
                 }
                 .courses-grid {
                     display: grid;
@@ -170,12 +168,6 @@ const TeacherDashboard = ({ user, courses, stats }) => {
                         <i className="fas fa-envelope"></i> الرسائل
                     </Link>
                 </div>
-            </div>
-
-            {/* إدارة المهام المتقدمة */}
-            <div className="tasks-section">
-                <h2><i className="fas fa-tasks"></i> إدارة المهام</h2>
-                <TaskManagement userRole="teacher" userId={user.id} />
             </div>
 
             <div className="courses-section">

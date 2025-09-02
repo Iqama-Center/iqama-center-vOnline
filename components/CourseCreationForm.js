@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import TaskPreviewCreator from './TaskPreviewCreator';
 import { CalendarIcon, ClockIcon, UserGroupIcon, CurrencyDollarIcon, DocumentTextIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 
 const CourseCreationForm = ({ onSubmit, onCancel }) => {
@@ -65,21 +64,11 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
                 level_2: '', // تكاليف المعلمين
                 level_3: ''  // تكاليف الطلاب
             }
-        },
-
-        // Task management
-        taskTemplates: {
-            level_1: [],
-            level_2: [],
-            level_3: []
         }
     });
 
     const [currentStep, setCurrentStep] = useState(1);
     const [message, setMessage] = useState({ text: '', type: '' });
-    const [generatedTasks, setGeneratedTasks] = useState([]);
-    const [courseSchedule, setCourseSchedule] = useState([]);
-    const [enrollments, setEnrollments] = useState([]);
 
     // Task template management functions
     const updateTaskTemplate = (levelKey, index, field, value) => {
@@ -205,90 +194,11 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
 
     const nextStep = () => {
         if (validateStep(currentStep)) {
-            // Generate course schedule when moving to task preview step
-            if (currentStep === 3) {
-                generateCourseSchedule();
-                generateSampleEnrollments();
-            }
-            setCurrentStep(prev => Math.min(prev + 1, 5));
+            setCurrentStep(prev => Math.min(prev + 1, 4));
             setMessage({ text: '', type: '' });
         } else {
             setMessage({ text: 'يرجى ملء جميع الحقول المطلوبة', type: 'error' });
         }
-    };
-
-    const generateCourseSchedule = () => {
-        if (!formData.start_date || !formData.duration_days) return;
-
-        const schedule = [];
-        const startDate = new Date(formData.start_date);
-        let currentDate = new Date(startDate);
-        let dayNumber = 1;
-        let daysAdded = 0;
-
-        while (dayNumber <= formData.duration_days) {
-            const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
-            
-            // Only add working days (Sunday to Thursday in Middle East)
-            if (dayOfWeek >= 0 && dayOfWeek <= 4 && daysAdded < formData.days_per_week) {
-                schedule.push({
-                    id: dayNumber,
-                    day_number: dayNumber,
-                    title: `اليوم ${dayNumber} - ${currentDate.toLocaleDateString('ar-SA')}`,
-                    scheduled_date: currentDate.toISOString().split('T')[0],
-                    meeting_start_time: '09:00:00',
-                    meeting_end_time: '11:00:00'
-                });
-                
-                dayNumber++;
-                daysAdded++;
-            }
-            
-            currentDate.setDate(currentDate.getDate() + 1);
-            
-            // Reset weekly counter
-            if (dayOfWeek === 4) { // Thursday
-                daysAdded = 0;
-            }
-        }
-
-        setCourseSchedule(schedule);
-    };
-
-    const generateSampleEnrollments = () => {
-        const sampleEnrollments = [];
-        
-        // Generate sample enrollments based on participant config
-        Object.entries(formData.participant_config).forEach(([levelKey, config]) => {
-            const levelNumber = parseInt(levelKey.split('_')[1]);
-            
-            // Add sample users for each role
-            config.roles.forEach((role, roleIndex) => {
-                for (let i = 0; i < Math.min(config.optimal, 3); i++) {
-                    sampleEnrollments.push({
-                        user_id: `${levelNumber}_${roleIndex}_${i}`,
-                        name: `${getRoleName(role)} ${i + 1}`,
-                        role: role,
-                        level_number: levelNumber
-                    });
-                }
-            });
-        });
-
-        setEnrollments(sampleEnrollments);
-    };
-
-    const getRoleName = (role) => {
-        const roleNames = {
-            admin: 'مدير',
-            head: 'رئيس قسم',
-            teacher: 'معلم',
-            student: 'طالب',
-            parent: 'ولي أمر',
-            worker: 'عامل',
-            supervisor: 'مشرف'
-        };
-        return roleNames[role] || role;
     };
 
     const prevStep = () => {
@@ -296,21 +206,11 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
         setMessage({ text: '', type: '' });
     };
 
-    const handleTasksChange = (tasks) => {
-        setGeneratedTasks(tasks);
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (validateStep(currentStep)) {
             try {
-                // Include generated tasks in the submission
-                const submissionData = {
-                    ...formData,
-                    generatedTasks,
-                    courseSchedule
-                };
-                await onSubmit(submissionData);
+                await onSubmit(formData);
                 setMessage({ text: 'تم إنشاء الدورة بنجاح!', type: 'success' });
             } catch (error) {
                 setMessage({ text: 'حدث خطأ في إنشاء الدورة', type: 'error' });
@@ -737,161 +637,158 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
         </div>
     );
 
-    const renderStep4Tasks = () => (
-        <div className="step-content">
-            <h3><i className="fas fa-tasks"></i> معاينة وإدارة المهام</h3>
-            <p className="step-description">معاينة المهام التي سيتم إنشاؤها تلقائياً للدورة</p>
-            
-            <TaskPreviewCreator
-                courseData={formData}
-                onTasksChange={handleTasksChange}
-                enrollments={enrollments}
-                courseSchedule={courseSchedule}
-            />
-        </div>
-    );
-
-    const renderStep5 = () => (
-        <div className="step-content">
-            <h3><i className="fas fa-check-circle"></i> مراجعة وتأكيد</h3>
-            <div className="summary">
-                <div className="summary-section">
-                    <h4>معلومات الدورة</h4>
-                    <p><strong>الاسم:</strong> {formData.name}</p>
-                    <p><strong>المدة:</strong> {formData.duration_days} أيام</p>
-                    <p><strong>تاريخ البدء:</strong> {formData.start_date}</p>
-                    <p><strong>أيام الأسبوع:</strong> {formData.days_per_week}</p>
-                    <p><strong>ساعات اليوم:</strong> {formData.hours_per_day}</p>
-                </div>
-
-                <div className="summary-section">
-                    <h4>الأدوار المحددة</h4>
-                    {Object.entries(formData.participant_config).map(([levelKey, level]) => (
-                        <div key={levelKey}>
-                            <strong>{level.name}:</strong>
-                            <ul>
-                                <li>الأدوار: {level.roles.join(', ')}</li>
-                                <li>الحد الأدنى: {level.min}</li>
-                                <li>الحد الأقصى: {level.max}</li>
-                                <li>العدد المثالي: {level.optimal}</li>
-                            </ul>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="summary-section">
-                    <h4>إحصائيات المهام</h4>
-                    <p><strong>إجمالي المهام:</strong> {generatedTasks.length}</p>
-                    <p><strong>المهام اليومية:</strong> {generatedTasks.filter(t => t.type === 'daily').length}</p>
-                    <p><strong>المهام الثابتة:</strong> {generatedTasks.filter(t => t.type === 'fixed').length}</p>
-                    <p><strong>مهام الطلاب:</strong> {generatedTasks.filter(t => t.targetRole === 'student').length}</p>
-                    <p><strong>مهام المعلمين:</strong> {generatedTasks.filter(t => t.targetRole === 'teacher').length}</p>
-                    <p><strong>مهام المشرفين:</strong> {generatedTasks.filter(t => t.targetRole === 'supervisor').length}</p>
-                </div>
-
-                <div className="summary-section">
-                    <h4>الجدول الزمني</h4>
-                    <p><strong>عدد أيام الدورة:</strong> {courseSchedule.length}</p>
-                    <p><strong>تاريخ البداية:</strong> {courseSchedule[0]?.scheduled_date}</p>
-                    <p><strong>تاريخ النهاية:</strong> {courseSchedule[courseSchedule.length - 1]?.scheduled_date}</p>
-                </div>
-            </div>
-        </div>
-    );
-
     return (
-        <div className="bg-white p-6 rounded-lg shadow-lg max-w-6xl mx-auto">
+        <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl mx-auto">
             <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">إنشاء دورة جديدة</h2>
             
-            {/* Step Navigation */}
-            <div className="mb-8">
-                <div className="flex justify-between items-center">
-                    {[
-                        { step: 1, title: 'المعلومات الأساسية', icon: '📝' },
-                        { step: 2, title: 'الأدوار والمشاركين', icon: '👥' },
-                        { step: 3, title: 'الملء التلقائي', icon: '⚙️' },
-                        { step: 4, title: 'معاينة المهام', icon: '📋' },
-                        { step: 5, title: 'المراجعة والتأكيد', icon: '✅' }
-                    ].map(({ step, title, icon }) => (
-                        <div key={step} className={`flex flex-col items-center ${
-                            currentStep >= step ? 'text-blue-600' : 'text-gray-400'
-                        }`}>
-                            <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
-                                currentStep >= step ? 'bg-blue-100 border-2 border-blue-600' : 'bg-gray-100 border-2 border-gray-300'
-                            }`}>
-                                {currentStep > step ? '✓' : icon}
-                            </div>
-                            <span className="text-xs mt-2 text-center">{title}</span>
-                        </div>
-                    ))}
-                </div>
-                <div className="mt-4 bg-gray-200 rounded-full h-2">
-                    <div 
-                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                        style={{ width: `${(currentStep / 5) * 100}%` }}
-                    ></div>
-                </div>
-            </div>
-
-            {/* Display Messages */}
-            {message.text && (
-                <div className={`mb-4 p-4 rounded-lg ${
-                    message.type === 'error' ? 'bg-red-100 text-red-700 border border-red-300' : 
-                    'bg-green-100 text-green-700 border border-green-300'
-                }`}>
-                    {message.text}
-                </div>
-            )}
-            
             <form onSubmit={handleSubmit} className="space-y-6" dir="rtl">
-                {/* Render current step */}
-                {currentStep === 1 && renderStep1()}
-                {currentStep === 2 && renderStep2()}
-                {currentStep === 3 && renderStep3()}
-                {currentStep === 4 && renderStep4Tasks()}
-                {currentStep === 5 && renderStep5()}
+                {/* معلومات الدورة الأساسية */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                        <DocumentTextIcon className="h-6 w-6 ml-2 text-blue-500" />
+                        المعلومات الأساسية
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">اسم الدورة</label>
+                            <input
+                                type="text"
+                                name="name"
+                                value={formData.name}
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                required
+                            />
+                        </div>
 
-                {/* Navigation buttons */}
-                <div className="flex justify-between pt-6 border-t">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">وصف الدورة</label>
+                            <textarea
+                                name="description"
+                                value={formData.description}
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                rows="3"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* معلومات التوقيت */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                        <CalendarIcon className="h-6 w-6 ml-2 text-green-500" />
+                        معلومات التوقيت
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">تاريخ البدء</label>
+                            <input
+                                type="date"
+                                name="start_date"
+                                value={formData.start_date}
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                required
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">مدة الدورة (بالأيام)</label>
+                            <input
+                                type="number"
+                                name="duration_days"
+                                value={formData.duration_days}
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                min="1"
+                                required
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">عدد أيام الدورة في الأسبوع</label>
+                            <input
+                                type="number"
+                                name="days_per_week"
+                                value={formData.days_per_week}
+                                onChange={handleInputChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                min="1"
+                                max="7"
+                                required
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* معلومات التكلفة والسعة */}
+                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                        <CurrencyDollarIcon className="h-6 w-6 ml-2 text-yellow-500" />
+                        التكلفة والسعة
+                    </h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">التكلفة</label>
+                            <input
+                                type="number"
+                                name="cost"
+                                value={formData.details.cost}
+                                onChange={handleDetailsChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                min="0"
+                                required
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">العملة</label>
+                            <select
+                                name="currency"
+                                value={formData.details.currency}
+                                onChange={handleDetailsChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                            >
+                                <option value="EGP">جنيه مصري</option>
+                                <option value="USD">دولار أمريكي</option>
+                                <option value="SAR">ريال سعودي</option>
+                            </select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">الحد الأقصى للمقاعد</label>
+                            <input
+                                type="number"
+                                name="max_seats"
+                                value={formData.details.max_seats}
+                                onChange={handleDetailsChange}
+                                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                min="1"
+                                required
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* أزرار التحكم */}
+                <div className="flex justify-end space-x-4">
                     <button
                         type="button"
-                        onClick={prevStep}
-                        disabled={currentStep === 1}
-                        className={`px-6 py-2 rounded-md ${
-                            currentStep === 1 
-                                ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
-                                : 'bg-gray-500 text-white hover:bg-gray-600'
-                        }`}
+                        onClick={onCancel}
+                        className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
                     >
-                        السابق
+                        إلغاء
                     </button>
-                    
-                    <div className="flex gap-2">
-                        <button
-                            type="button"
-                            onClick={onCancel}
-                            className="px-6 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-                        >
-                            إلغاء
-                        </button>
-                        
-                        {currentStep < 5 ? (
-                            <button
-                                type="button"
-                                onClick={nextStep}
-                                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-                            >
-                                التالي
-                            </button>
-                        ) : (
-                            <button
-                                type="submit"
-                                className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
-                            >
-                                إنشاء الدورة
-                            </button>
-                        )}
-                    </div>
+                    <button
+                        type="submit"
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                        إنشاء الدورة
+                    </button>
                 </div>
             </form>
         </div>

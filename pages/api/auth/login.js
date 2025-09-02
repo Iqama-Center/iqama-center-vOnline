@@ -12,14 +12,6 @@ export default async function handler(req, res) {
 
   const { emailOrPhone, password } = req.body;
 
-  // Debug logging
-  console.log('Login attempt:', { emailOrPhone, passwordLength: password?.length });
-
-  // Validate input
-  if (!emailOrPhone || !password) {
-    return res.status(400).json({ message: 'البريد الإلكتروني وكلمة السر مطلوبان' });
-  }
-
   try {
     const result = await pool.query(
       'SELECT id, full_name, email, phone, password_hash, role, account_status FROM users WHERE email = $1 OR phone = $1', 

@@ -35,22 +35,8 @@ export default async function handler(req, res) {
                 WHERE course_id = $1 AND status = 'waiting_start'
             `, [id]);
 
-            // Step 3: Generate all tasks for the course using the new task generation system
-            const taskGenerationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/courses/generate-tasks`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': req.headers.cookie || ''
-                },
-                body: JSON.stringify({ courseId: id })
-            });
-
-            if (!taskGenerationResponse.ok) {
-                console.warn('Task generation failed, but continuing with launch');
-            } else {
-                const taskResult = await taskGenerationResponse.json();
-                console.log(`Generated ${taskResult.tasksCreated} tasks for course ${id}`);
-            }
+            // Step 3: Generate all daily tasks for the course using the new database function
+            await client.query('SELECT generate_daily_tasks_for_course($1)', [id]);
 
             // Step 4: Get all enrolled users for notifications
             const enrolledUsers = await client.query(`

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import DailyCommitments from '../DailyCommitments';
-import TaskManagement from '../TaskManagement';
 
 const StudentDashboard = ({ user, tasks, courses, commitments: initialCommitments }) => {
     const [commitments, setCommitments] = useState(initialCommitments || {});
@@ -88,16 +87,42 @@ const StudentDashboard = ({ user, tasks, courses, commitments: initialCommitment
                 <DailyCommitments user={user} initialCommitments={commitments} />
             </div>
 
-            {/* إدارة المهام المتقدمة */}
-            <div className="dashboard-section full-width">
-                <div className="section-header">
-                    <h3><i className="fas fa-tasks"></i> إدارة المهام</h3>
-                </div>
-                <TaskManagement userRole="student" userId={user.id} />
-            </div>
-
             {/* الأقسام التفصيلية */}
             <div className="dashboard-sections">
+                {/* المهام العاجلة */}
+                <div className="dashboard-section">
+                    <div className="section-header">
+                        <h3><i className="fas fa-tasks"></i> المهام العاجلة</h3>
+                        <Link href="/student/tasks" className="view-all-link">
+                            عرض الكل <i className="fas fa-arrow-left"></i>
+                        </Link>
+                    </div>
+                    <div className="tasks-list">
+                        {tasks && tasks.length > 0 ? (
+                            tasks.slice(0, 5).map(task => (
+                                <div key={task.id} className="task-item">
+                                    <div className="task-icon">
+                                        <i className="fas fa-clipboard-check"></i>
+                                    </div>
+                                    <div className="task-info">
+                                        <strong>{task.title}</strong>
+                                        <div className="task-details">
+                                            <span className="task-type">{task.type || 'مهمة'}</span>
+                                            <span className="task-date">المستحق: {new Date(task.due_date).toLocaleDateString('ar-SA')}</span>
+                                        </div>
+                                    </div>
+                                    <div className="task-actions">
+                                        <Link href={`/courses/submit/${task.id}`} className="btn-small">
+                                            إنجاز
+                                        </Link>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="no-data">لا توجد مهام عاجلة. أحسنت!</p>
+                        )}
+                    </div>
+                </div>
 
                 {/* الدورات الحالية */}
                 <div className="dashboard-section">
@@ -200,11 +225,6 @@ const StudentDashboard = ({ user, tasks, courses, commitments: initialCommitment
                     grid-template-columns: 1fr 1fr;
                     gap: 30px;
                     margin-top: 30px;
-                }
-
-                .full-width {
-                    grid-column: 1 / -1;
-                    margin: 20px 0;
                 }
                 
                 .dashboard-section {
