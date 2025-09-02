@@ -3,6 +3,7 @@ import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import TaskNotificationSystem from './TaskNotificationSystem';
+import TaskNotificationSystemFallback from './TaskNotificationSystemFallback';
 import Pusher from 'pusher-js';
 import AIAssistant from './AIAssistant';
 
@@ -166,8 +167,12 @@ const Header = ({ user, onLogout, onToggleSidebar, isMobile }) => {
                 {!isMobile && <div className="header-title">لوحة التحكم</div>}
             </div>
             <div className="header-right">
-                {/* Task Notification System */}
-                <TaskNotificationSystem userId={user.id} userRole={user.role} />
+                {/* Task Notification System with Fallback */}
+                {process.env.NODE_ENV === 'development' ? (
+                    <TaskNotificationSystemFallback userId={user.id} userRole={user.role} />
+                ) : (
+                    <TaskNotificationSystem userId={user.id} userRole={user.role} />
+                )}
                 
                 {/* General Notifications */}
                 <div className="notifications-bell" onClick={handleBellClick}>

@@ -10,10 +10,14 @@ const TaskManagement = ({ userRole, userId, courseId = null }) => {
     const router = useRouter();
 
     useEffect(() => {
-        fetchTasks();
-    }, [filter, courseId]);
+        if (userId) {
+            fetchTasks();
+        }
+    }, [filter, courseId, userId]);
 
     const fetchTasks = async () => {
+        if (!userId) return;
+        
         try {
             setLoading(true);
             const url = courseId 
@@ -21,15 +25,19 @@ const TaskManagement = ({ userRole, userId, courseId = null }) => {
                 : `/api/tasks?filter=${filter}`;
             
             const response = await fetch(url);
-            const data = await response.json();
             
             if (response.ok) {
+                const data = await response.json();
                 setTasks(data.tasks || []);
             } else {
-                console.error('Failed to fetch tasks:', data.message);
+                // Silently handle API errors to prevent breaking the UI
+                console.warn('Failed to fetch tasks:', response.status);
+                setTasks([]);
             }
         } catch (error) {
-            console.error('Error fetching tasks:', error);
+            // Silently handle network errors
+            console.warn('Error fetching tasks:', error.message);
+            setTasks([]);
         } finally {
             setLoading(false);
         }

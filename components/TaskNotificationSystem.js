@@ -7,10 +7,12 @@ const TaskNotificationSystem = ({ userId, userRole }) => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
-        fetchNotifications();
-        // Set up polling for new notifications every 30 seconds
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
+        if (userId) {
+            fetchNotifications();
+            // Set up polling for new notifications every 30 seconds
+            const interval = setInterval(fetchNotifications, 30000);
+            return () => clearInterval(interval);
+        }
     }, [userId]);
 
     const fetchNotifications = async () => {
@@ -20,9 +22,13 @@ const TaskNotificationSystem = ({ userId, userRole }) => {
                 const data = await response.json();
                 setNotifications(data.notifications || []);
                 setUnreadCount(data.unreadCount || 0);
+            } else {
+                // Silently handle API errors to prevent breaking the UI
+                console.warn('Failed to fetch notifications:', response.status);
             }
         } catch (error) {
-            console.error('Error fetching notifications:', error);
+            // Silently handle network errors
+            console.warn('Error fetching notifications:', error.message);
         }
     };
 
