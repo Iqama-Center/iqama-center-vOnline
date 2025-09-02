@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
+import TaskNotificationSystem from './TaskNotificationSystem';
 import Pusher from 'pusher-js';
 import AIAssistant from './AIAssistant';
 
@@ -165,12 +166,16 @@ const Header = ({ user, onLogout, onToggleSidebar, isMobile }) => {
                 {!isMobile && <div className="header-title">لوحة التحكم</div>}
             </div>
             <div className="header-right">
+                {/* Task Notification System */}
+                <TaskNotificationSystem userId={user.id} userRole={user.role} />
+                
+                {/* General Notifications */}
                 <div className="notifications-bell" onClick={handleBellClick}>
                     <i className="fas fa-bell"></i>
                     {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
                     {isDropdownOpen && (
                         <div className="notifications-dropdown show">
-                            <div className="notification-header">الإشعارات</div>
+                            <div className="notification-header">الإشعارات العامة</div>
                             <div className="notification-list">
                                 {notifications.length > 0 ? notifications.map(n => (
                                     <Link 
@@ -186,6 +191,7 @@ const Header = ({ user, onLogout, onToggleSidebar, isMobile }) => {
                         </div>
                     )}
                 </div>
+                
                 <div className="user-menu">
                     <span>أهلاً, {user.full_name}</span>
                     <button onClick={onLogout} title="تسجيل الخروج"><i className="fas fa-sign-out-alt"></i></button>

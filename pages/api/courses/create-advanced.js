@@ -2,6 +2,46 @@ import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
 import errorHandler from '../../../lib/errorHandler';
 
+async function generateCourseSchedule(client, courseId, startDate, durationDays, daysPerWeek) {
+    const start = new Date(startDate);
+    const daysOfWeek = ['sun', 'mon', 'tue', 'wed', 'thu']; // Default working days
+    
+    let currentDate = new Date(start);
+    let dayNumber = 1;
+    let daysAdded = 0;
+    
+    while (dayNumber <= durationDays) {
+        const dayOfWeek = currentDate.getDay(); // 0 = Sunday, 1 = Monday, etc.
+        
+        // Only add working days (Sunday to Thursday in Middle East)
+        if (dayOfWeek >= 0 && dayOfWeek <= 4 && daysAdded < daysPerWeek) {
+            await client.query(`
+                INSERT INTO course_schedule (
+                    course_id, day_number, title, scheduled_date, 
+                    meeting_start_time, meeting_end_time
+                ) VALUES ($1, $2, $3, $4, $5, $6)
+            `, [
+                courseId,
+                dayNumber,
+                `اليوم ${dayNumber} - ${currentDate.toLocaleDateString('ar-SA')}`,
+                currentDate.toISOString().split('T')[0],
+                '09:00:00', // Default start time
+                '11:00:00'  // Default end time (2 hours)
+            ]);
+            
+            dayNumber++;
+            daysAdded++;
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1);
+        
+        // Reset weekly counter
+        if (dayOfWeek === 4) { // Thursday
+            daysAdded = 0;
+        }
+    }
+}
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'الطريقة غير مسموحة' });
@@ -92,6 +132,11 @@ export default async function handler(req, res) {
                         }
                     }
                 }
+            }
+
+            // Generate course schedule if start_date is provided
+            if (start_date && duration_days) {
+                await generateCourseSchedule(client, courseId, start_date, duration_days, days_per_week);
             }
 
             await client.query('COMMIT');

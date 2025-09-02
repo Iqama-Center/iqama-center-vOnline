@@ -1,4 +1,5 @@
 import '../styles/globals.css';
+import taskScheduler from '../lib/taskScheduler';
 import { useEffect } from 'react';
 
 // Import the internal scheduler
@@ -16,6 +17,11 @@ const tajawalFont = Tajawal({
   display: 'swap', // يضمن ظهور النص بخط بديل حتى يتم تحميل الخط الرئيسي
   variable: '--font-tajawal', // إنشاء متغير CSS لاستخدامه بسهولة
 });
+
+// Start task scheduler on app initialization
+if (typeof window === 'undefined') {
+  taskScheduler.start();
+}
 
 function MyApp({ Component, pageProps }) {
   // Start the internal scheduler when app loads
