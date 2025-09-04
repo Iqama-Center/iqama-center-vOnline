@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import useUserStore from '../stores/userStore';
+import TaskGenerationStep from './TaskGenerationStep';
 
 const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
     const [currentStep, setCurrentStep] = useState(1);
@@ -40,6 +41,11 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
             auto_launch_on_max_capacity: false,
             auto_launch_on_optimal_capacity: false,
             auto_launch_on_min_capacity: false
+        },
+        task_generation_config: {
+            enabled: false,
+            levels: {},
+            customTasks: {}
         }
     });
     const router = useRouter();
@@ -124,6 +130,11 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                     auto_launch_on_max_capacity: false,
                     auto_launch_on_optimal_capacity: false,
                     auto_launch_on_min_capacity: false
+                }),
+                task_generation_config: parseJsonField(initialCourse.task_generation_config, {
+                    enabled: false,
+                    levels: {},
+                    customTasks: {}
                 })
             });
         }
@@ -164,19 +175,33 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
             return;
         }
         
-        const url = initialCourse ? `/api/courses/${initialCourse.id}` : '/api/courses/create-advanced';
+        // Determine which API to use based on task generation config
+        const useTaskGeneration = course.task_generation_config?.enabled;
+        const url = initialCourse 
+            ? `/api/courses/${initialCourse.id}` 
+            : (useTaskGeneration ? '/api/courses/create-with-tasks' : '/api/courses/create-advanced');
         const method = initialCourse ? 'PUT' : 'POST';
+
+        // Prepare the request body
+        const requestBody = {
+            ...course,
+            taskGenerationEnabled: useTaskGeneration,
+            enhancedTaskConfig: useTaskGeneration ? course.task_generation_config.customTasks : {}
+        };
 
         try {
             const response = await fetch(url, {
                 method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(course)
+                body: JSON.stringify(requestBody)
             });
 
             const result = await response.json();
             if (response.ok) {
-                alert('✅ تم حفظ الدورة بنجاح!');
+                const successMessage = useTaskGeneration 
+                    ? `✅ تم حفظ الدورة وإنشاء ${result.tasksGenerated || 0} مهمة بنجاح!`
+                    : '✅ تم حفظ الدورة بنجاح!';
+                alert(successMessage);
                 
                 if (initialCourse) {
                     // For editing existing course - redirect to schedule page
@@ -223,6 +248,13 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         }));
     };
 
+    const handleTaskConfigChange = (taskConfig) => {
+        setCourse(prev => ({
+            ...prev,
+            task_generation_config: taskConfig
+        }));
+    };
+
     const nextStep = (e) => {
         if (e) {
             e.preventDefault();
@@ -252,7 +284,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
             }
         }
         
-        setCurrentStep(prev => Math.min(prev + 1, 3));
+        setCurrentStep(prev => Math.min(prev + 1, 4));
     };
     
     const prevStep = (e) => {
@@ -1271,6 +1303,14 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         </div>
     );
 
+    const renderStep4 = () => (
+        <TaskGenerationStep 
+            course={course}
+            onTaskConfigChange={handleTaskConfigChange}
+            taskConfig={course.task_generation_config}
+        />
+    );
+
     return (
         <div className="course-form-container">
             <style jsx>{`
@@ -1479,8 +1519,11 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 <div className={`step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
                     2. تكوين المشاركين
                 </div>
-                <div className={`step ${currentStep >= 3 ? 'active' : ''}`}>
+                <div className={`step ${currentStep >= 3 ? 'active' : ''} ${currentStep > 3 ? 'completed' : ''}`}>
                     3. إعدادات النشر
+                </div>
+                <div className={`step ${currentStep >= 4 ? 'active' : ''}`}>
+                    4. إعداد المهام
                 </div>
             </div>
 
@@ -1498,6 +1541,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 {currentStep === 1 && renderStep1()}
                 {currentStep === 2 && renderStep2()}
                 {currentStep === 3 && renderStep3()}
+                {currentStep === 4 && renderStep4()}
 
                 <div className="navigation-buttons">
                     <button 
@@ -1514,7 +1558,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                        → السابق 
                     </button>
                     
-                    {currentStep < 3 ? (
+                    {currentStep < 4 ? (
                         <button 
                             type="button" 
                             className="btn btn-primary" 

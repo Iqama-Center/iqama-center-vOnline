@@ -1,7 +1,6 @@
 import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
 import errorHandler from '../../../lib/errorHandler';
-import { generateTasksForCourse } from '../../../lib/taskGenerator';
 
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
@@ -9,14 +8,20 @@ export default async function handler(req, res) {
     }
 
     const token = req.cookies.token;
-    if (!token) return res.status(401).json({ message: 'غير مصرح بالدخول' });
+    if (!token) return res.status(401).json({ message: 'غير مصرح بالدخول - يجب تسجيل الدخول أولاً' });
+
+    let decoded;
+    try {
+        decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!['admin', 'head'].includes(decoded.role)) {
+            return res.status(403).json({ message: 'غير مخول - يجب أن تكون مدير أو رئيس قسم' });
+        }
+    } catch (jwtError) {
+        console.error('JWT verification error:', jwtError.message);
+        return res.status(401).json({ message: 'رمز المصادقة غير صالح' });
+    }
 
     try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        if (!['admin', 'head'].includes(decoded.role)) {
-            return res.status(403).json({ message: 'غير مخول' });
-        }
-
         const { 
             name, 
             description, 
@@ -30,7 +35,8 @@ export default async function handler(req, res) {
             auto_launch_settings,
             courseSchedule,
             generatedTasks,
-            taskGenerationEnabled
+            taskGenerationEnabled,
+            enhancedTaskConfig
         } = req.body;
 
         if (!name || !description) {
@@ -131,11 +137,22 @@ export default async function handler(req, res) {
                 `, [courseId]);
 
                 if (enrollments.rows.length > 0) {
-                    // Use the task generator utility
-                    tasksGenerated = await generateTasksForCourse(
+                    // Use the enhanced task generator utility
+                    const enhancedTaskGenerator = await import('../../../lib/enhancedTaskGenerator.js');
+                    tasksGenerated = await enhancedTaskGenerator.generateEnhancedTasksForCourse(
                         courseId, 
                         courseResult.rows[0], 
-                        enrollments.rows
+                        enrollments.rows,
+                        enhancedTaskConfig || {}
+                    );
+                } else {
+                    // If no enrollments yet, still create task templates for future use
+                    const enhancedTaskGenerator = await import('../../../lib/enhancedTaskGenerator.js');
+                    await enhancedTaskGenerator.generateEnhancedTasksForCourse(
+                        courseId, 
+                        courseResult.rows[0], 
+                        [], // Empty enrollments
+                        enhancedTaskConfig || {}
                     );
                 }
             }
@@ -144,6 +161,7 @@ export default async function handler(req, res) {
 
             res.status(201).json({ 
                 message: 'تم إنشاء الدورة والمهام بنجاح', 
+                id: courseId, // Add this for CourseForm compatibility
                 courseId: courseId,
                 scheduleCreated: scheduleCreated,
                 tasksGenerated: tasksGenerated
@@ -158,7 +176,18 @@ export default async function handler(req, res) {
 
     } catch (err) {
         console.error("Course creation with tasks error:", err);
-        errorHandler(err, res);
+        console.error("Error stack:", err.stack);
+        console.error("Error details:", {
+            message: err.message,
+            code: err.code,
+            detail: err.detail
+        });
+        
+        // Return more detailed error for debugging
+        res.status(500).json({ 
+            message: 'خطأ في إنشاء الدورة: ' + err.message,
+            error: process.env.NODE_ENV === 'development' ? err.stack : 'Internal server error'
+        });
     }
 }
 
