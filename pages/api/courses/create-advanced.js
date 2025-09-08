@@ -75,11 +75,23 @@ export default async function handler(req, res) {
                     if (config.preselected_users && config.preselected_users.enabled && config.preselected_users.users && config.preselected_users.users.length > 0) {
                         for (const userId of config.preselected_users.users) {
                             // Enroll the user and create payment record if applicable
+                            // Validate inputs before insertion
+                            const parsedUserId = parseInt(userId);
+                            if (isNaN(parsedUserId) || parsedUserId <= 0) {
+                                throw new Error(`Invalid user ID: ${userId}`);
+                            }
+                            if (!courseId || courseId <= 0) {
+                                throw new Error(`Invalid course ID: ${courseId}`);
+                            }
+                            if (!levelNumber || levelNumber <= 0) {
+                                throw new Error(`Invalid level number: ${levelNumber}`);
+                            }
+                            
                             await client.query(`
                                 INSERT INTO enrollments (user_id, course_id, status, level_number, enrolled_at)
                                 VALUES ($1, $2, 'active', $3, NOW())
                                 ON CONFLICT (user_id, course_id) DO NOTHING;
-                            `, [parseInt(userId), courseId, levelNumber]);
+                            `, [parsedUserId, courseId, levelNumber]);
 
                             if (config.financial && config.financial.type === 'receive' && config.financial.amount > 0) {
                                 await client.query(`

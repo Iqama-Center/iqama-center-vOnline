@@ -108,10 +108,20 @@ export default async function handler(req, res) {
         ];
 
         for (const userId of allUsers) {
+            // Validate inputs before insertion
+            const parsedUserId = parseInt(userId);
+            if (isNaN(parsedUserId) || parsedUserId <= 0) {
+                throw new Error(`Invalid user ID: ${userId}`);
+            }
+            if (!courseId || courseId <= 0) {
+                throw new Error(`Invalid course ID: ${courseId}`);
+            }
+            
             await pool.query(
                 `INSERT INTO enrollments (user_id, course_id, status)
-                 VALUES ($1, $2, 'pending_payment')`,
-                [userId, courseId]
+                 VALUES ($1, $2, 'pending_payment')
+                 ON CONFLICT (user_id, course_id) DO NOTHING`,
+                [parsedUserId, courseId]
             );
         }
 

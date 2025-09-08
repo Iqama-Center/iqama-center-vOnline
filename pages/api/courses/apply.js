@@ -117,9 +117,22 @@ export default async function handler(req, res) {
         }
 
         // Create enrollment
+        // Validate inputs before insertion
+        const parsedUserId = parseInt(decoded.id);
+        const parsedCourseId = parseInt(courseId);
+        if (isNaN(parsedUserId) || parsedUserId <= 0) {
+            throw new Error(`Invalid user ID: ${decoded.id}`);
+        }
+        if (isNaN(parsedCourseId) || parsedCourseId <= 0) {
+            throw new Error(`Invalid course ID: ${courseId}`);
+        }
+        
         const enrollment = await pool.query(
-            'INSERT INTO enrollments (user_id, course_id, status) VALUES ($1, $2, $3) RETURNING *',
-            [decoded.id, courseId, enrollmentStatus]
+            `INSERT INTO enrollments (user_id, course_id, status) 
+             VALUES ($1, $2, $3) 
+             ON CONFLICT (user_id, course_id) DO UPDATE SET status = $3
+             RETURNING *`,
+            [parsedUserId, parsedCourseId, enrollmentStatus]
         );
 
         // Create payment record if user needs to pay
