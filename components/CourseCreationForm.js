@@ -1,6 +1,29 @@
 import React, { useState } from 'react';
 import { CalendarIcon, ClockIcon, UserGroupIcon, CurrencyDollarIcon, DocumentTextIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 
+// Define task types constants
+const TASK_TYPES = {
+  level_1: {
+    monitoring: 'مراقبة يومية',
+    review: 'مراجعة الأداء',
+    supervision: 'متابعة الإشراف',
+    reporting: 'إعداد التقارير'
+  },
+  level_2: {
+    evaluation: 'تقييم الطلاب',
+    attendance: 'تسجيل الحضور', 
+    preparation: 'تحضير الدرس',
+    grading: 'تصحيح الواجبات'
+  },
+  level_3: {
+    reading: 'قراءة يومية',
+    quiz: 'اختبار يومي',
+    homework: 'واجب منزلي',
+    project: 'مشروع تطبيقي',
+    wird: 'ورد يومي'
+  }
+};
+
 const CourseCreationForm = ({ onSubmit, onCancel }) => {
     const [formData, setFormData] = useState({
         name: '',
@@ -258,40 +281,60 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (validateStep(currentStep)) {
-            try {
-                // Include generated tasks and schedule in the submission
-                const submissionData = {
-                    ...formData,
-                    taskGenerationEnabled: formData.taskConfiguration.enableTaskGeneration,
-                    enhancedTaskConfig: formData.taskConfiguration
-                };
-                
-                const response = await fetch('/api/courses/create-with-tasks', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(submissionData),
-                });
+        
+        // Validate task types
+        const hasValidTasks = Object.entries(formData.taskConfiguration)
+            .filter(([levelKey]) => levelKey !== 'enableTaskGeneration')
+            .every(([levelKey, tasks]) => 
+                tasks.every(task => TASK_TYPES[levelKey][task.type])
+            );
 
-                const result = await response.json();
-
-                if (response.ok) {
-                    setMessage({ text: `تم إنشاء الدورة بنجاح! تم توليد ${result.tasksGenerated || 0} مهمة تلقائياً`, type: 'success' });
-                    
-                    // Redirect to course management after success
-                    setTimeout(() => {
-                        window.location.href = `/admin/courses/${result.courseId}`;
-                    }, 2000);
-                } else {
-                    setMessage({ text: result.message || 'حدث خطأ في إنشاء الدورة', type: 'error' });
-                }
-            } catch (error) {
-                console.error('Course creation error:', error);
-                setMessage({ text: 'حدث خطأ في إنشاء الدورة', type: 'error' });
-            }
+        if (!hasValidTasks) {
+            setMessage({
+                text: 'يرجى التحقق من صحة أنواع المهام المختارة',
+                type: 'error'
+            });
+            return;
         }
+
+        try {
+            const response = await fetch('/api/courses/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                setMessage({
+                    text: 'تم إنشاء الدورة بنجاح!',
+                    type: 'success'
+                });
+                onSubmit(result);
+            } else {
+                setMessage({
+                    text: result.message || 'حدث خطأ في إنشاء الدورة',
+                    type: 'error'
+                });
+            }
+        } catch (error) {
+            console.error('Error creating course:', error);
+            setMessage({
+                text: 'حدث خطأ في إنشاء الدورة',
+                type: 'error'
+            });
+        }
+    };
+
+    const renderTaskTypeOptions = (levelKey) => {
+        return Object.entries(TASK_TYPES[levelKey]).map(([value, label]) => (
+            <option key={value} value={value}>
+                {label}
+            </option>
+        ));
     };
 
     const renderStep1 = () => (
