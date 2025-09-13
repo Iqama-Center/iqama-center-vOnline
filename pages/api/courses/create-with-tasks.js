@@ -155,7 +155,8 @@ export default async function handler(req, res) {
                         courseId, 
                         courseResult.rows[0], 
                         enrollments.rows,
-                        enhancedTaskConfig || {}
+                        enhancedTaskConfig || {},
+                        client // Pass the existing client to avoid nested transactions
                     );
                 } else {
                     // If no enrollments yet, still create task templates for future use
@@ -164,7 +165,8 @@ export default async function handler(req, res) {
                         courseId, 
                         courseResult.rows[0], 
                         [], // Empty enrollments
-                        enhancedTaskConfig || {}
+                        enhancedTaskConfig || {},
+                        client // Pass the existing client to avoid nested transactions
                     );
                 }
             }
