@@ -98,7 +98,7 @@ export default async function handler(req, res) {
                         if (template.type && template.title) {
                             await pool.query(`
                                 INSERT INTO course_task_templates (
-                                    course_id, level_number, task_type, title, 
+                                    course_id, level_number, template_type, title, 
                                     description, default_instructions, max_score
                                 ) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
                                 [
