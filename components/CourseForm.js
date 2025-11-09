@@ -20,7 +20,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         content_outline: '',
         duration_days: 30,
         start_date: '',
-        days_per_week: 2,
+        schedule_config: {}, // Example: { "saturday": "09:00", "monday": "10:00" }
         hours_per_day: 3.0,
         course_fee: 300,
         max_enrollment: 15,
@@ -82,7 +82,7 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 description: initialCourse.description || '',
                 duration_days: initialCourse.duration_days || 7,
                 start_date: initialCourse.start_date ? new Date(initialCourse.start_date).toISOString().split('T')[0] : '',
-                days_per_week: initialCourse.days_per_week || 5,
+                schedule_config: parseJsonField(initialCourse.schedule_config, {}),
                 hours_per_day: initialCourse.hours_per_day || 2.0,
                 content_outline: initialCourse.content_outline || '',
                 course_fee: initialCourse.course_fee ?? details.cost ?? 0,
@@ -138,9 +138,85 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         }));
     };
 
+    const handleScheduleChange = (day, field, value) => {
+        setCourse(prev => {
+            const newConfig = { ...prev.schedule_config };
+
+            if (field === 'enabled') {
+                if (value) {
+                    // Add day with default time if it doesn't exist
+                    if (!newConfig[day]) {
+                        newConfig[day] = { time: '09:00' };
+                    }
+                } else {
+                    // Remove day
+                    delete newConfig[day];
+                }
+            } else if (field === 'time') {
+                // Update time for the day
+                if (newConfig[day]) {
+                    newConfig[day].time = value;
+                }
+            }
+            
+            return { 
+                ...prev, 
+                schedule_config: newConfig,
+                days_per_week: Object.keys(newConfig).length
+            };
+        });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         e.stopPropagation();
+
+        const generateSchedule = () => {
+            const schedule = [];
+            const { duration_days, start_date, schedule_config, hours_per_day } = course;
+            const weekDays = Object.keys(schedule_config);
+
+            if (!start_date || !duration_days || duration_days <= 0 || !weekDays || weekDays.length === 0) {
+                return { schedule: [], endDate: null };
+            }
+
+            const dayMapping = { 'sunday': 0, 'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6 };
+            const selectedDayNumbers = weekDays.map(day => dayMapping[day]);
+
+            let currentDate = new Date(start_date);
+            currentDate.setMinutes(currentDate.getMinutes() + currentDate.getTimezoneOffset());
+
+            let daysScheduled = 0;
+            let endDate = null;
+
+            while (daysScheduled < duration_days) {
+                const currentDayKey = Object.keys(dayMapping).find(key => dayMapping[key] === currentDate.getDay());
+                if (selectedDayNumbers.includes(currentDate.getDay()) && schedule_config[currentDayKey]) {
+                    daysScheduled++;
+                    const scheduledDate = new Date(currentDate);
+                    const startTime = schedule_config[currentDayKey].time;
+                    
+                    const [startHour, startMinute] = startTime.split(':').map(Number);
+                    const endHour = startHour + Math.floor(hours_per_day);
+                    const endMinute = startMinute + (hours_per_day % 1) * 60;
+                    const endTime = `${String(endHour).padStart(2, '0')}:${String(endMinute).padStart(2, '0')}`;
+
+                    schedule.push({
+                        day_number: daysScheduled,
+                        title: `اليوم ${daysScheduled}`,
+                        scheduled_date: scheduledDate.toISOString().split('T')[0],
+                        meeting_start_time: startTime,
+                        meeting_end_time: endTime,
+                    });
+                    endDate = new Date(scheduledDate);
+                }
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+
+            return { schedule, endDate: endDate ? endDate.toISOString().split('T')[0] : null };
+        };
+
+        const { schedule: courseSchedule, endDate } = generateSchedule();
         
         const useTaskGeneration = course.task_generation_config?.enabled;
         const url = initialCourse 
@@ -151,8 +227,11 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         const { task_generation_config, ...restOfCourse } = course;
         const requestBody = {
             ...restOfCourse,
+            end_date: endDate,
+            courseSchedule,
+            days_per_week: Object.keys(course.schedule_config).length,
             task_generation_enabled: useTaskGeneration,
-            enhanced_task_config: useTaskGeneration ? task_generation_config.customTasks : {}
+            enhanced_task_config: useTaskGeneration ? course.task_generation_config.customTasks : {}
         };
 
         try {
@@ -225,8 +304,8 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 { field: course.content_outline, name: 'جدول محتويات الدورة' },
                 { field: course.duration_days, name: 'مدة الدورة (بالأيام)' },
                 { field: course.start_date, name: 'تاريخ بدء الدورة' },
-                { field: course.days_per_week, name: 'عدد أيام الدورة في الأسبوع' },
-                { field: course.hours_per_day, name: 'مدة اليوم (بالساعات)' },
+                { field: course.schedule_config && Object.keys(course.schedule_config).length > 0, name: 'أيام وتوقيت الدورة' },
+                { field: course.hours_per_day, name: 'مدة الجلسة (بالساعات)' },
             ];
             
             const missingFields = requiredFields.filter(item => !item.field || item.field === '' || item.field === 0);
@@ -273,20 +352,34 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                     <label htmlFor="start_date" style={{ marginBottom: '15px', fontWeight: 700, color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'Tajawal, Cairo, sans-serif' }}>🗓️ تاريخ بدء الدورة</label>
                     <input type="date" id="start_date" name="start_date" value={course.start_date} onChange={handleChange} required style={{ padding: '12px 16px', border: '2px solid #a855f7', borderRadius: '8px', fontSize: '1.2rem', fontFamily: 'Tajawal, Cairo, sans-serif', background: 'linear-gradient(135deg, #faf5ff 0%, #ffffff 100%)', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)', width: '100%', boxSizing: 'border-box', fontWeight: 500, color: '#7c3aed' }} />
                 </div>
-                <div className="form-group">
-                    <label htmlFor="days_per_week" style={{ marginBottom: '15px', fontWeight: 700, color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'Tajawal, Cairo, sans-serif' }}>📆 عدد أيام الدورة في الأسبوع</label>
-                    <select id="days_per_week" name="days_per_week" value={course.days_per_week} onChange={handleChange} required style={{ padding: '12px 16px', border: '2px solid #22c55e', borderRadius: '8px', fontSize: '1.2rem', fontFamily: 'Tajawal, Cairo, sans-serif', background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)', width: '100%', boxSizing: 'border-box', fontWeight: 500, color: '#15803d', textAlign: 'center', cursor: 'pointer' }}>
-                        <option value="1">يوم واحد</option>
-                        <option value="2">يومان</option>
-                        <option value="3">ثلاثة أيام</option>
-                        <option value="4">أربعة أيام</option>
-                        <option value="5">خمسة أيام</option>
-                        <option value="6">ستة أيام</option>
-                        <option value="7">سبعة أيام</option>
-                    </select>
+                <div className="form-group full-width" style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ marginBottom: '15px', fontWeight: 700, color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'Tajawal, Cairo, sans-serif' }}>📆 أيام وتوقيت الدورة</label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)', padding: '20px', borderRadius: '8px', border: '2px solid #22c55e' }}>
+                        {[{key: 'saturday', name: 'السبت'}, {key: 'sunday', name: 'الأحد'}, {key: 'monday', name: 'الإثنين'}, {key: 'tuesday', name: 'الثلاثاء'}, {key: 'wednesday', name: 'الأربعاء'}, {key: 'thursday', name: 'الخميس'}, {key: 'friday', name: 'الجمعة'}].map(day => (
+                            <div key={day.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px', borderRadius: '6px', background: course.schedule_config[day.key] ? '#e6f4ea' : '#fff', border: '1px solid #ddd', transition: 'all 0.2s ease-in-out' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: '#333', fontWeight: '500' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={!!course.schedule_config[day.key]}
+                                        onChange={(e) => handleScheduleChange(day.key, 'enabled', e.target.checked)}
+                                        style={{ width: '18px', height: '18px', accentColor: '#22c55e' }}
+                                    />
+                                    {day.name}
+                                </label>
+                                {course.schedule_config[day.key] && (
+                                    <input 
+                                        type="time"
+                                        value={course.schedule_config[day.key].time}
+                                        onChange={(e) => handleScheduleChange(day.key, 'time', e.target.value)}
+                                        style={{ padding: '8px', border: '1px solid #ccc', borderRadius: '4px', marginLeft: '20px' }}
+                                    />
+                                )}
+                            </div>
+                        ))}
+                    </div>
                 </div>
                 <div className="form-group">
-                    <label htmlFor="hours_per_day" style={{ marginBottom: '15px', fontWeight: 700, color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'Tajawal, Cairo, sans-serif' }}>⏰ مدة اليوم (بالساعات)</label>
+                    <label htmlFor="hours_per_day" style={{ marginBottom: '15px', fontWeight: 700, color: '#1e293b', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '12px', fontFamily: 'Tajawal, Cairo, sans-serif' }}>⏰ مدة الجلسة (بالساعات)</label>
                     <input type="number" id="hours_per_day" name="hours_per_day" value={course.hours_per_day} onChange={handleChange} step="0.5" min="0.5" max="12" required style={{ padding: '12px 16px', border: '2px solid #22c55e', borderRadius: '8px', fontSize: '1.1rem', fontFamily: 'Tajawal, Cairo, sans-serif', background: 'linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%)', transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)', width: '100%', boxSizing: 'border-box', fontWeight: 500, color: '#15803d', textAlign: 'center' }} />
                 </div>
             </div>

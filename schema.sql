@@ -85,6 +85,7 @@ CREATE TABLE public.courses (
     end_date DATE,
     days_per_week INTEGER DEFAULT 5,
     hours_per_day NUMERIC(3,1) DEFAULT 2.0,
+    schedule_config JSONB,
     content_outline TEXT,
     auto_launch_settings JSONB DEFAULT '{}'::jsonb,
     participant_config JSONB DEFAULT '{}'::jsonb,
