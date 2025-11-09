@@ -1,51 +1,68 @@
+
 import pool from '../../../lib/db';
-import jwt from 'jsonwebtoken';
+import { withAuth } from '../../../lib/withAuth';
 
-export default async function handler(req, res) {
-    const token = req.cookies.token;
-    if (!token) return res.status(401).json({ message: 'Not authenticated' });
+const handler = async (req, res) => {
+    const { user } = req;
 
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // Only allow workers to access this endpoint
-        if (decoded.role !== 'worker') {
-            return res.status(403).json({ message: 'Access denied' });
-        }
+    if (req.method === 'GET') {
+        try {
+            const { status, priority, search } = req.query;
 
-        if (req.method === 'GET') {
-            try {
-                // Try to get real data from worker_tasks table
-                const result = await pool.query(`
-                    SELECT 
-                        wt.*,
-                        u.full_name as supervisor_name
-                    FROM worker_tasks wt
-                    LEFT JOIN users u ON wt.assigned_by = u.id
-                    WHERE wt.assigned_to = $1
-                    ORDER BY 
-                        CASE wt.priority 
-                            WHEN 'urgent' THEN 1
-                            WHEN 'high' THEN 2
-                            WHEN 'medium' THEN 3
-                            WHEN 'low' THEN 4
-                        END,
-                        wt.due_date ASC
-                `, [decoded.id]);
+            let query = `
+                SELECT 
+                    wt.*,
+                    u.full_name as supervisor_name
+                FROM worker_tasks wt
+                LEFT JOIN users u ON wt.assigned_by = u.id
+                WHERE wt.assigned_to = $1
+            `;
+            
+            const params = [user.id];
+            let paramIndex = 2;
 
-                res.status(200).json(result.rows);
-            } catch (dbError) {
-                console.log('Worker tasks table not found, returning empty array:', dbError.message);
-                
-                // Return empty array if table doesn't exist
-                res.status(200).json([]);
+            if (status && status !== 'all') {
+                if (status === 'overdue') {
+                    query += ` AND wt.status != 'completed' AND wt.due_date < CURRENT_TIMESTAMP`;
+                } else {
+                    query += ` AND wt.status = $${paramIndex++}`;
+                    params.push(status);
+                }
             }
-        } else {
-            res.setHeader('Allow', ['GET']);
-            res.status(405).end(`Method ${req.method} Not Allowed`);
+
+            if (priority && priority !== 'all') {
+                query += ` AND wt.priority = $${paramIndex++}`;
+                params.push(priority);
+            }
+
+            if (search) {
+                query += ` AND (wt.title ILIKE $${paramIndex++} OR wt.description ILIKE $${paramIndex++})`;
+                params.push(`%${search}%`);
+                params.push(`%${search}%`);
+            }
+
+            query += `
+                ORDER BY 
+                    CASE wt.priority 
+                        WHEN 'urgent' THEN 1
+                        WHEN 'high' THEN 2
+                        WHEN 'medium' THEN 3
+                        WHEN 'low' THEN 4
+                    END,
+                    wt.due_date ASC
+            `;
+
+            const result = await pool.query(query, params);
+            res.status(200).json(result.rows);
+
+        } catch (dbError) {
+            console.error('Error fetching worker tasks:', dbError);
+            res.status(500).json({ message: 'Internal server error' });
         }
-    } catch (err) {
-        console.error('Worker tasks API error:', err);
-        res.status(500).json({ message: 'خطأ في الخادم' });
+    } else {
+        res.setHeader('Allow', ['GET']);
+        res.status(405).end(`Method ${req.method} Not Allowed`);
     }
-}
+};
+
+export default withAuth(handler, { roles: ['worker'] });

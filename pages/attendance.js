@@ -42,17 +42,17 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
         }
     }, [selectedCourse, selectedDate]);
 
-    const handleAttendanceChange = (studentId, field, value) => {
+    const handleAttendanceChange = (userId, field, value) => {
         setAttendanceRecords(prev => {
-            const existing = prev.find(r => r.student_id === studentId);
+            const existing = prev.find(r => r.user_id === userId);
             if (existing) {
                 return prev.map(r => 
-                    r.student_id === studentId 
+                    r.user_id === userId 
                         ? { ...r, [field]: value }
                         : r
                 );
             } else {
-                return [...prev, { student_id: studentId, [field]: value, status: 'present' }];
+                return [...prev, { user_id: userId, [field]: value, status: 'present' }];
             }
         });
     };
@@ -70,7 +70,7 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     course_id: selectedCourse,
-                    session_date: selectedDate,
+                    date: selectedDate,
                     attendance_records: attendanceRecords
                 })
             });
@@ -112,8 +112,8 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
                         {courses.map(course => {
                             const statusText = course.is_launched ? 'مُطلقة' : 
                                              course.is_published ? 'منشورة' : 'مسودة';
-                            const enrollmentText = course.current_enrollment ? 
-                                ` (${course.current_enrollment}/${course.max_enrollment} طالب)` : '';
+                            const enrollmentText = course.student_count ? 
+                                ` (${course.student_count}/${course.max_enrollment} طالب)` : '';
                             
                             return (
                                 <option key={course.id} value={course.id}>
@@ -150,7 +150,7 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
                         </thead>
                         <tbody>
                             {students.map(student => {
-                                const record = attendanceRecords.find(r => r.student_id === student.id) || {};
+                                const record = attendanceRecords.find(r => r.user_id === student.id) || {};
                                 return (
                                     <tr key={student.id}>
                                         <td>{student.full_name}</td>
@@ -158,7 +158,6 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
                                             <select 
                                                 value={record.status || 'present'}
                                                 onChange={(e) => handleAttendanceChange(student.id, 'status', e.target.value)}
-                                                className="form-control"
                                             >
                                                 <option value="present">حاضر</option>
                                                 <option value="absent">غائب</option>
@@ -169,41 +168,28 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
                                         <td>
                                             <input 
                                                 type="number" 
-                                                min="0" 
-                                                max="60"
                                                 value={record.late_minutes || ''}
                                                 onChange={(e) => handleAttendanceChange(student.id, 'late_minutes', e.target.value)}
-                                                className="form-control"
-                                                disabled={record.status !== 'late'}
+                                                className="form-control-sm"
                                             />
                                         </td>
                                         <td>
-                                            <select 
+                                            <input 
+                                                type="number" 
+                                                min="1" max="5"
                                                 value={record.behavior_score || ''}
                                                 onChange={(e) => handleAttendanceChange(student.id, 'behavior_score', e.target.value)}
-                                                className="form-control"
-                                            >
-                                                <option value="">--</option>
-                                                <option value="5">ممتاز (5)</option>
-                                                <option value="4">جيد جداً (4)</option>
-                                                <option value="3">جيد (3)</option>
-                                                <option value="2">مقبول (2)</option>
-                                                <option value="1">ضعيف (1)</option>
-                                            </select>
+                                                className="form-control-sm"
+                                            />
                                         </td>
                                         <td>
-                                            <select 
+                                            <input 
+                                                type="number" 
+                                                min="1" max="5"
                                                 value={record.participation_score || ''}
                                                 onChange={(e) => handleAttendanceChange(student.id, 'participation_score', e.target.value)}
-                                                className="form-control"
-                                            >
-                                                <option value="">--</option>
-                                                <option value="5">ممتاز (5)</option>
-                                                <option value="4">جيد جداً (4)</option>
-                                                <option value="3">جيد (3)</option>
-                                                <option value="2">مقبول (2)</option>
-                                                <option value="1">ضعيف (1)</option>
-                                            </select>
+                                                className="form-control-sm"
+                                            />
                                         </td>
                                         <td>
                                             <input 
@@ -211,7 +197,6 @@ const AttendancePage = ({ user, courses, attendanceData }) => {
                                                 value={record.notes || ''}
                                                 onChange={(e) => handleAttendanceChange(student.id, 'notes', e.target.value)}
                                                 className="form-control"
-                                                placeholder="ملاحظات..."
                                             />
                                         </td>
                                     </tr>
@@ -379,7 +364,6 @@ export const getServerSideProps = withAuth(async (context) => {
                     status,
                     is_published,
                     is_launched,
-                    current_enrollment,
                     max_enrollment
                 FROM courses 
                 WHERE (created_by = $1 OR teacher_id = $1)
@@ -405,7 +389,6 @@ export const getServerSideProps = withAuth(async (context) => {
                     status,
                     is_published,
                     is_launched,
-                    current_enrollment,
                     max_enrollment
                 FROM courses 
                 WHERE (

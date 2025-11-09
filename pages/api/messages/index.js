@@ -19,17 +19,35 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: "لا يمكن إرسال أرقام هواتف أو روابط في الرسائل." });
         }
 
-        const result = await pool.query(
-            `INSERT INTO messages (sender_id, recipient_id, content) VALUES ($1, $2, $3) RETURNING *`,
-            [senderId, recipientId, content]
-        );
-        
-        const newMessage = result.rows[0];
+        const client = await pool.connect();
+        let newMessage;
 
-        // Trigger Pusher event to notify the recipient in real-time
-        await pusher.trigger(`private-user-${recipientId}`, 'new-message', newMessage);
+        try {
+            await client.query('BEGIN');
 
-        res.status(201).json(newMessage);
+            const messageResult = await client.query(
+                `INSERT INTO messages (sender_id, recipient_id, content) VALUES ($1, $2, $3) RETURNING *`,
+                [senderId, recipientId, content]
+            );
+            newMessage = messageResult.rows[0];
+
+            // Also create an entry in message_recipients for the recipient
+            await client.query(
+                `INSERT INTO message_recipients (message_id, user_id) VALUES ($1, $2)`,
+                [newMessage.id, recipientId]
+            );
+
+            await client.query('COMMIT');
+
+            // Trigger Pusher event to notify the recipient in real-time
+            await pusher.trigger(`private-user-${recipientId}`, 'new-message', newMessage);
+            res.status(201).json(newMessage);
+        } catch (e) {
+            await client.query('ROLLBACK');
+            throw e; // Let the generic error handler catch it
+        } finally {
+            client.release();
+        }
 
     } catch (err) {
         console.error("Send message error:", err);

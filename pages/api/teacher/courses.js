@@ -41,7 +41,7 @@ export default withAuth(async (req, res) => {
                     (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active') as student_count,
                     (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status IN ('pending_payment', 'pending_approval')) as pending_count,
                     (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'completed') as completed_count,
-                    (SELECT AVG(rating) FROM course_ratings cr WHERE cr.course_id = c.id) as average_rating,
+                    (SELECT AVG(overall_rating) FROM course_ratings cr WHERE cr.course_id = c.id) as average_rating,
                     (SELECT COUNT(*) FROM course_ratings cr WHERE cr.course_id = c.id) as rating_count,
                     (SELECT COUNT(*) FROM course_messages cm WHERE cm.course_id = c.id) as message_count,
                     (SELECT COUNT(*) FROM exams ex WHERE ex.course_id = c.id) as exam_count,
@@ -77,7 +77,7 @@ export default withAuth(async (req, res) => {
                     COUNT(CASE WHEN c.is_published = false THEN 1 END) as draft_courses,
                     COALESCE(SUM((SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active')), 0) as total_students,
                     COALESCE(SUM((SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'completed')), 0) as completed_students,
-                    COALESCE(AVG((SELECT AVG(rating) FROM course_ratings cr WHERE cr.course_id = c.id)), 0) as average_rating,
+                    COALESCE(AVG((SELECT AVG(overall_rating) FROM course_ratings cr WHERE cr.course_id = c.id)), 0) as average_rating,
                     COALESCE(SUM((SELECT COUNT(*) FROM course_messages cm WHERE cm.course_id = c.id)), 0) as total_messages,
                     COALESCE(SUM((SELECT COUNT(*) FROM exams ex WHERE ex.course_id = c.id)), 0) as total_exams
                 FROM courses c

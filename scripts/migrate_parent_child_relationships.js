@@ -4,21 +4,22 @@ const pool = require('../lib/db');
 
 async function migrateParentChildRelationships() {
     console.log('🔄 Starting Parent-Child Relationships Migration...\n');
-    
+    const client = await pool.connect();
+
     try {
-        await pool.query('BEGIN');
+        await client.query('BEGIN');
         
         // Step 1: Ensure parent_child_relationships table has proper structure
-        console.log('1. Updating parent_child_relationships table structure...');
-        await pool.query(`
+        console.log('1. Verifying parent_child_relationships table structure...');
+        await client.query(`
             ALTER TABLE parent_child_relationships 
-            ADD COLUMN IF NOT EXISTS created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP;
+            ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
         `);
-        console.log('✅ Table structure updated');
+        console.log('✅ Table structure is up-to-date.');
         
         // Step 2: Migrate existing JSONB parent_id references
         console.log('\n2. Migrating JSONB parent_id references...');
-        const migrationResult = await pool.query(`
+        const migrationResult = await client.query(`
             INSERT INTO parent_child_relationships (parent_id, child_id, created_at)
             SELECT 
                 (u.details->>'parent_id')::INTEGER as parent_id,
@@ -26,24 +27,26 @@ async function migrateParentChildRelationships() {
                 u.created_at
             FROM users u
             WHERE u.details->>'parent_id' IS NOT NULL
+                AND u.details->>'parent_id' ~ '^[0-9]+$' -- Ensure it is a valid integer
                 AND (u.details->>'parent_id')::INTEGER > 0
                 AND u.role = 'student'
-                AND NOT EXISTS (
-                    SELECT 1 FROM parent_child_relationships pcr 
-                    WHERE pcr.parent_id = (u.details->>'parent_id')::INTEGER 
-                    AND pcr.child_id = u.id
-                )
+            ON CONFLICT (parent_id, child_id) DO NOTHING
             RETURNING parent_id, child_id;
         `);
         
-        console.log(`✅ Migrated ${migrationResult.rows.length} parent-child relationships`);
+        if (migrationResult.rows.length > 0) {
+            console.log(`✅ Migrated ${migrationResult.rows.length} new parent-child relationships.`);
+        } else {
+            console.log('✅ No new relationships to migrate.');
+        }
         
         // Step 3: Verify migration
         console.log('\n3. Verifying migration...');
-        const totalRelationships = await pool.query('SELECT COUNT(*) as count FROM parent_child_relationships');
-        const jsonbReferences = await pool.query(`
+        const totalRelationships = await client.query('SELECT COUNT(*) as count FROM parent_child_relationships');
+        const jsonbReferences = await client.query(`
             SELECT COUNT(*) as count FROM users 
-            WHERE details->>'parent_id' IS NOT NULL 
+            WHERE details->>'parent_id' IS NOT NULL
+            AND details->>'parent_id' ~ '^[0-9]+$'
             AND (details->>'parent_id')::INTEGER > 0
             AND role = 'student'
         `);
@@ -51,42 +54,42 @@ async function migrateParentChildRelationships() {
         console.log(`Total relationships in table: ${totalRelationships.rows[0].count}`);
         console.log(`JSONB references found: ${jsonbReferences.rows[0].count}`);
         
-        // Step 4: Clean up JSONB parent_id references (optional)
-        console.log('\n4. Cleaning up JSONB parent_id references...');
-        const cleanupResult = await pool.query(`
-            UPDATE users 
-            SET details = details - 'parent_id'
-            WHERE details->>'parent_id' IS NOT NULL
-            AND id IN (SELECT child_id FROM parent_child_relationships)
-            RETURNING id;
+        // Step 4: Clean up JSONB parent_id references
+        console.log('\n4. Cleaning up migrated JSONB parent_id references...');
+        const cleanupResult = await client.query(`
+            UPDATE users u
+            SET details = u.details - 'parent_id'
+            WHERE u.details->>'parent_id' IS NOT NULL
+            AND EXISTS (
+                SELECT 1 FROM parent_child_relationships pcr
+                WHERE pcr.child_id = u.id AND pcr.parent_id = (u.details->>'parent_id')::INTEGER
+            )
+            RETURNING u.id;
         `);
         
-        console.log(`✅ Cleaned up ${cleanupResult.rows.length} JSONB parent_id references`);
+        if (cleanupResult.rows.length > 0) {
+            console.log(`✅ Cleaned up ${cleanupResult.rows.length} JSONB parent_id references.`);
+        } else {
+            console.log('✅ No JSONB references to clean up.');
+        }
         
         // Step 5: Add indexes for performance
-        console.log('\n5. Adding performance indexes...');
-        await pool.query(`
-            CREATE INDEX IF NOT EXISTS idx_parent_child_parent ON parent_child_relationships(parent_id);
-            CREATE INDEX IF NOT EXISTS idx_parent_child_child ON parent_child_relationships(child_id);
-        `);
-        console.log('✅ Indexes created');
+        console.log('\n5. Ensuring performance indexes exist...');
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_parent_child_parent ON parent_child_relationships(parent_id);`);
+        await client.query(`CREATE INDEX IF NOT EXISTS idx_parent_child_child ON parent_child_relationships(child_id);`);
+        console.log('✅ Indexes are in place.');
         
-        await pool.query('COMMIT');
+        await client.query('COMMIT');
         
         console.log('\n🎉 Migration completed successfully!');
-        console.log('\n📊 Migration Summary:');
-        console.log(`- Relationships migrated: ${migrationResult.rows.length}`);
-        console.log(`- Total relationships: ${totalRelationships.rows[0].count}`);
-        console.log(`- JSONB references cleaned: ${cleanupResult.rows.length}`);
-        console.log('- Performance indexes: Added');
         
     } catch (error) {
-        await pool.query('ROLLBACK');
+        await client.query('ROLLBACK');
         console.error('❌ Migration failed:', error.message);
         console.error('Stack:', error.stack);
         throw error;
     } finally {
-        await pool.end();
+        client.release();
     }
 }
 
@@ -94,11 +97,12 @@ async function migrateParentChildRelationships() {
 if (require.main === module) {
     migrateParentChildRelationships()
         .then(() => {
-            console.log('\n✅ Migration script completed successfully');
-            process.exit(0);
+            console.log('\n✅ Migration script finished.');
+            pool.end(); // End pool after script finishes
         })
         .catch((error) => {
-            console.error('\n❌ Migration script failed:', error.message);
+            console.error('\n❌ A fatal error occurred during migration.');
+            pool.end();
             process.exit(1);
         });
 }

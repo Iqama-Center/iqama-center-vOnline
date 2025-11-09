@@ -35,7 +35,7 @@ export default async function handler(req, res) {
 
     try {
         
-        const { courseId, userId, evaluateAll } = req.body;
+        const { course_id: courseId, user_id: userId, evaluateAll } = req.body;
 
         if (!courseId) {
             return res.status(400).json({ message: 'Course ID is required' });
@@ -242,7 +242,7 @@ async function updateUserPerformanceRecord(userId, courseId, performanceData) {
             userId,
             courseId,
             performanceData.level_number,
-            performanceData.task_completion_rate || 0,
+            performanceData.completion_rate || 0,
             performanceData.average_grade || 0,
             performanceData.on_time_completion_rate || 0,
             performanceData.overall_score || 0,

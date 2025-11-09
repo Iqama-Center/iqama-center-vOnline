@@ -1,3 +1,15 @@
 {
-  "extends": "next/core-web-vitals"
+  "extends": "next/core-web-vitals",
+  "rules": {
+    // This is a base configuration. Consider adding more rules for consistency.
+    
+    // Example: Disallow the use of `alert`, which is generally discouraged in modern web apps.
+    "no-alert": "warn",
+
+    // Example: Enforce strict equality to prevent type coercion bugs.
+    "eqeqeq": ["error", "always"],
+
+    // Example: Warn about console logs instead of leaving them in production code.
+    "no-console": ["warn", { "allow": ["warn", "error"] }]
+  }
 }

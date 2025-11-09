@@ -192,18 +192,7 @@ const MessagesPage = ({ user, initialConversations }) => {
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
     const conversationsRes = await pool.query(`
-        SELECT DISTINCT ON (contact_id) contact_id, contact_name, last_message_at
-        FROM (
-            SELECT 
-                CASE WHEN sender_id = $1 THEN recipient_id ELSE sender_id END as contact_id,
-                CASE WHEN sender_id = $1 THEN r.full_name ELSE s.full_name END as contact_name,
-                sent_at as last_message_at
-            FROM messages
-            JOIN users s ON s.id = sender_id
-            JOIN users r ON r.id = recipient_id
-            WHERE sender_id = $1 OR recipient_id = $1
-        ) as convos
-        ORDER BY contact_id, last_message_at DESC;
+        SELECT * FROM get_user_conversations($1);
     `, [user.id]);
 
     return {

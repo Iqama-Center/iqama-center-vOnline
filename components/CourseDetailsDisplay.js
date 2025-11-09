@@ -89,10 +89,16 @@ const arabicValues = {
   'admin': 'مدير'
 };
 
-const CourseDetailsDisplay = ({ details, className = '' }) => {
-  if (!details || typeof details !== 'object') {
+const CourseDetailsDisplay = ({ course, className = '' }) => {
+  if (!course || typeof course !== 'object') {
     return <span>لا توجد تفاصيل إضافية</span>;
   }
+
+  const allDetails = {
+    course_fee: course.course_fee,
+    max_enrollment: course.max_enrollment,
+    ...(course.details || {})
+  };
 
   const formatValue = (key, value) => {
     // Skip empty values
@@ -102,7 +108,7 @@ const CourseDetailsDisplay = ({ details, className = '' }) => {
 
     // Handle arrays
     if (Array.isArray(value)) {
-      return value.map(v => arabicValues[v?.toLowerCase()] || v).join('، ');
+      return value.map(v => arabicValues[v?.toLowerCase()] || v).join(', ');
     }
 
     // Handle booleans
@@ -113,7 +119,7 @@ const CourseDetailsDisplay = ({ details, className = '' }) => {
     // Handle numbers with special formatting
     if (typeof value === 'number') {
       if (key === 'cost' || key === 'price' || key === 'fee') {
-        const currency = details.currency || 'ريال';
+        const currency = allDetails.currency || 'ريال';
         const arabicCurrency = arabicValues[currency] || currency;
         return `${value} ${arabicCurrency}`;
       }
@@ -137,7 +143,7 @@ const CourseDetailsDisplay = ({ details, className = '' }) => {
     return arabicLabels[key] || key;
   };
 
-  const detailItems = Object.entries(details)
+  const detailItems = Object.entries(allDetails)
     .filter(([key, value]) => {
       // Skip internal/technical fields
       if (['id', 'created_at', 'updated_at', 'internal_notes'].includes(key)) {

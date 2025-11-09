@@ -37,8 +37,8 @@ export default async function handler(req, res) {
                     a.*,
                     u.full_name as student_name
                 FROM attendance a
-                JOIN users u ON a.student_id = u.id
-                WHERE a.course_id = $1 AND a.session_date = $2
+                JOIN users u ON a.user_id = u.id
+                WHERE a.course_id = $1 AND a.date = $2
                 ORDER BY u.full_name ASC
             `;
             queryParams = [course_id, date];
@@ -50,8 +50,8 @@ export default async function handler(req, res) {
                     c.name as course_name
                 FROM attendance a
                 JOIN courses c ON a.course_id = c.id
-                WHERE a.student_id = $1
-                ORDER BY a.session_date DESC
+                WHERE a.user_id = $1
+                ORDER BY a.date DESC
                 LIMIT 50
             `;
             queryParams = [student_id];

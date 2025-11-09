@@ -1,15 +1,22 @@
-
 import React, { useState } from 'react';
 import Layout from '../../components/Layout';
 import { withAuth } from '../../lib/withAuth';
-
 import styles from '../../styles/TeacherGradebook.module.css';
 import pool from '../../lib/db';
+import { safeSerialize } from '../../lib/serializer';
 
 const GradingModal = ({ show, onClose, submission, onSubmit }) => {
     const [grade, setGrade] = useState(submission?.grade || '');
     const [feedback, setFeedback] = useState(submission?.feedback || '');
     const [message, setMessage] = useState(null);
+
+    React.useEffect(() => {
+        if (show) {
+            setGrade(submission?.grade || '');
+            setFeedback(submission?.feedback || '');
+            setMessage(null);
+        }
+    }, [show, submission]);
 
     if (!show || !submission) return null;
 
@@ -68,7 +75,7 @@ const TeacherGradebookPage = ({ user, course, tasks, students, submissions }) =>
             });
             const result = await response.json();
             if (response.ok) {
-                // Optionally update local state or refetch data
+                window.location.reload(); // Easiest way to show updated data
                 return { text: 'تم تسجيل الدرجة بنجاح.', isSuccess: true };
             } else {
                 return { text: result.message, isError: true };
@@ -80,7 +87,7 @@ const TeacherGradebookPage = ({ user, course, tasks, students, submissions }) =>
 
     return (
         <Layout user={user}>
-            <h1><i class="fas fa-book-reader fa-fw"></i> دفتر درجات دورة: {course.name}</h1>
+            <h1><i className="fas fa-book-reader fa-fw"></i> دفتر درجات دورة: {course.name}</h1>
             <p>قم بمراجعة تقديمات الطلاب وتسجيل الدرجات.</p>
 
             <div className={`${styles.gradebookContainer} table-responsive-wrapper`}>
@@ -108,7 +115,7 @@ const TeacherGradebookPage = ({ user, course, tasks, students, submissions }) =>
                                             {submission ? (
                                                 submission.status === 'graded' ? (
                                                     <span className={styles.statusGraded}>{submission.grade}</span>
-                                                ) : submission.status === 'submitted' ? (
+                                                ) : submission.status === 'submitted' || submission.status === 'late' ? (
                                                     <span className={styles.statusSubmitted}><i className="fas fa-exclamation-circle"></i> يحتاج تصحيح</span>
                                                 ) : (
                                                     <span className={styles.statusPending}>لم يقدم</span>
@@ -136,55 +143,47 @@ const TeacherGradebookPage = ({ user, course, tasks, students, submissions }) =>
 };
 
 export const getServerSideProps = withAuth(async (context) => {
-    const { query } = context;
-    const { id: courseId } = query; // Assuming course ID is passed as a query parameter
-    const { user } = context;
+    const { query, user } = context;
+    const { id: courseId } = query;
 
-    if (user.role !== 'teacher' && user.role !== 'admin') {
+    if (!courseId) {
+        return { notFound: true };
+    }
+
+    if (user.role !== 'teacher' && user.role !== 'admin' && user.role !== 'head') {
         return { redirect: { destination: '/dashboard', permanent: false } };
     }
 
-    const courseResult = await pool.query('SELECT * FROM courses WHERE id = $1', [courseId]);
-    if (courseResult.rows.length === 0) {
+    try {
+        const result = await pool.query(
+            'SELECT get_course_gradebook($1) as gradebook_data;',
+            [courseId]
+        );
+        
+        const data = result.rows[0]?.gradebook_data;
+
+        if (!data || !data.course) {
+            return { notFound: true };
+        }
+
+        // Security check: ensure the user is the teacher for this course
+        if (user.role === 'teacher' && data.course.teacher_id !== user.id) {
+            return { redirect: { destination: '/teacher/my-courses', permanent: false } };
+        }
+
+        return {
+            props: {
+                user,
+                course: safeSerialize(data.course),
+                tasks: safeSerialize(data.tasks || []),
+                students: safeSerialize(data.students || []),
+                submissions: safeSerialize(data.submissions || []),
+            },
+        };
+    } catch (error) {
+        console.error('Error fetching gradebook data:', error);
         return { notFound: true };
     }
-    const course = courseResult.rows[0];
-
-    const tasksResult = await pool.query(
-        `SELECT t.id, t.title FROM tasks t
-        JOIN course_schedule cs ON t.schedule_id = cs.id
-        WHERE cs.course_id = $1 ORDER BY t.due_date ASC`,
-        [courseId]
-    );
-    const tasks = tasksResult.rows;
-
-    const studentsResult = await pool.query(
-        `SELECT u.id, u.full_name FROM users u
-        JOIN enrollments e ON u.id = e.user_id
-        WHERE e.course_id = $1 AND u.role = 'student' ORDER BY u.full_name ASC`,
-        [courseId]
-    );
-    const students = studentsResult.rows;
-
-    const submissionsResult = await pool.query(
-        `SELECT s.id as submission_id, s.user_id, s.task_id, s.content, s.status, s.grade, s.feedback
-        FROM submissions s
-        JOIN tasks t ON s.task_id = t.id
-        JOIN course_schedule cs ON t.schedule_id = cs.id
-        WHERE cs.course_id = $1`,
-        [courseId]
-    );
-    const submissions = submissionsResult.rows;
-
-    return {
-        props: {
-            user: JSON.parse(JSON.stringify(user)),
-            course: JSON.parse(JSON.stringify(course)),
-            tasks: JSON.parse(JSON.stringify(tasks)),
-            students: JSON.parse(JSON.stringify(students)),
-            submissions: JSON.parse(JSON.stringify(submissions)),
-        },
-    };
 });
 
 export default TeacherGradebookPage;

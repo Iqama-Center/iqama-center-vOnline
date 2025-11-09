@@ -7,9 +7,10 @@
  * Cron setup: 0 * * * * /usr/bin/node /path/to/daily-task-scheduler.js
  */
 
-const { exec } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const http = require('http');
+const https = require('https');
 
 // Configuration
 const CONFIG = {
@@ -40,36 +41,52 @@ function log(message, level = 'INFO') {
     }
 }
 
-// HTTP request function
+// HTTP request function using native http/https module
 function makeRequest(url, options = {}) {
     return new Promise((resolve, reject) => {
+        const urlObject = new URL(url);
+        const client = urlObject.protocol === 'https:' ? https : http;
+        const body = JSON.stringify(options.body || {});
+
         const requestOptions = {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Content-Length': Buffer.byteLength(body),
                 ...options.headers
             },
-            ...options
+            timeout: 30000 // 30 seconds
         };
 
-        const curlCommand = `curl -X ${requestOptions.method} \
-            -H "Content-Type: application/json" \
-            -d '${JSON.stringify(options.body || {})}' \
-            "${url}"`;
-
-        exec(curlCommand, { timeout: 30000 }, (error, stdout, stderr) => {
-            if (error) {
-                reject(new Error(`Request failed: ${error.message}`));
-                return;
-            }
-
-            try {
-                const response = JSON.parse(stdout);
-                resolve(response);
-            } catch (parseError) {
-                reject(new Error(`Failed to parse response: ${parseError.message}`));
-            }
+        const req = client.request(urlObject, requestOptions, (res) => {
+            let data = '';
+            res.on('data', (chunk) => {
+                data += chunk;
+            });
+            res.on('end', () => {
+                if (res.statusCode >= 200 && res.statusCode < 300) {
+                    try {
+                        resolve(JSON.parse(data));
+                    } catch (e) {
+                        reject(new Error('Failed to parse JSON response.'));
+                    }
+                } else {
+                    reject(new Error(`Request failed with status code ${res.statusCode}: ${data}`));
+                }
+            });
         });
+
+        req.on('error', (e) => {
+            reject(new Error(`Request error: ${e.message}`));
+        });
+
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timed out'));
+        });
+
+        req.write(body);
+        req.end();
     });
 }
 
@@ -148,7 +165,6 @@ async function checkAutoLaunch() {
     log('Checking auto-launch conditions...');
     
     try {
-        // Get all published but not launched courses
         const response = await withRetry(() => 
             makeRequest(`${CONFIG.API_BASE_URL}/api/courses/auto-launch-check`, {
                 body: {
@@ -176,36 +192,36 @@ async function main() {
     log('=== Daily Task Scheduler Started ===');
     
     let successCount = 0;
-    let totalTasks = 3;
+    const tasksToRun = [];
 
     // Task 1: Release daily tasks
-    if (await releaseDailyTasks()) {
-        successCount++;
-    }
+    tasksToRun.push(releaseDailyTasks());
 
     // Task 2: Run performance evaluation (every 4 hours)
     const currentHour = new Date().getHours();
     if (currentHour % 4 === 0) {
-        if (await runPerformanceEvaluation()) {
-            successCount++;
-        }
+        tasksToRun.push(runPerformanceEvaluation());
     } else {
-        totalTasks--;
         log('Skipping performance evaluation (not scheduled for this hour)');
     }
 
     // Task 3: Check auto-launch conditions
-    if (await checkAutoLaunch()) {
-        successCount++;
-    }
+    tasksToRun.push(checkAutoLaunch());
+
+    const results = await Promise.allSettled(tasksToRun);
+    results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value === true) {
+            successCount++;
+        }
+    });
 
     const duration = Date.now() - startTime;
-    log(`=== Daily Task Scheduler Completed ===`);
-    log(`Success rate: ${successCount}/${totalTasks} tasks completed successfully`);
+    log('=== Daily Task Scheduler Completed ===');
+    log(`Success rate: ${successCount}/${tasksToRun.length} tasks completed successfully`);
     log(`Total execution time: ${duration}ms`);
 
     // Exit with appropriate code
-    process.exit(successCount === totalTasks ? 0 : 1);
+    process.exit(successCount === tasksToRun.length ? 0 : 1);
 }
 
 // Handle uncaught errors

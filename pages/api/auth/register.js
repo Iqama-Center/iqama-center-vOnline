@@ -40,19 +40,25 @@ export default async function handler(req, res) {
     const salt = await bcrypt.genSalt(10);
     const password_hash = await bcrypt.hash(password, salt);
 
-    // Enhanced details object with new fields
-    const enhancedDetails = {
-      ...details,
-      parent_contact_optional: details.parentContactOptional || '',
-      father_perspective: details.fatherPerspective || '',
-      mother_perspective: details.motherPerspective || '',
+    // Build a clean details object for the database, converting keys to snake_case
+    const dbDetails = {
+      gender: details?.gender,
+      birth_date: details?.birthDate,
+      nationality: details?.nationality,
+      languages: details?.languages,
+      parent_notes: details?.parentNotes,
+      is_payment_locked: details?.isPaymentLocked,
+      worker_specializations: details?.workerSpecializations,
+      parent_contact_optional: details?.parentContactOptional || '',
+      father_perspective: details?.fatherPerspective || '',
+      mother_perspective: details?.motherPerspective || '',
       registration_status: 'pending_verification', // New registrations need verification first
       registration_date: new Date().toISOString()
     };
 
     const newUser = await pool.query(
       'INSERT INTO users (full_name, email, phone, password_hash, role, details, account_status) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-      [fullName, email, phone, password_hash, role, enhancedDetails, 'pending_verification']
+      [fullName, email, phone, password_hash, role, dbDetails, 'pending_verification']
     );
 
     const userId = newUser.rows[0].id;

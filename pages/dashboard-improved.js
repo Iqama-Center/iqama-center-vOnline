@@ -247,28 +247,6 @@ const ImprovedDashboardPage = ({
  * This provides base statistics and public data that can be cached
  */
 export async function getStaticProps() {
-    // Use static fallback data during build to avoid database connection issues
-    console.log('Using static fallback data for dashboard-improved build');
-    return {
-        props: {
-            staticStats: {
-                totalActiveCourses: 20,
-                totalStudents: 150,
-                totalEnrollments: 200,
-                totalTeachers: 12
-            },
-            publicData: {
-                recentAnnouncements: [],
-                recentCourses: []
-            },
-            lastUpdated: new Date().toISOString()
-        },
-        revalidate: 300
-    };
-}
-
-// Original function (disabled during build)
-async function getStaticPropsOriginal() {
     try {
         // Fetch common statistics that can be cached
         const statsQueries = await Promise.allSettled([
@@ -287,18 +265,18 @@ async function getStaticPropsOriginal() {
 
         // Fetch recent public announcements or news
         let recentAnnouncements = [];
-        // try {
-        //     const announcementsResult = await pool.query(`
-        //         SELECT id, title, content, created_at
-        //         FROM announcements 
-        //         WHERE is_public = true AND status = 'active'
-        //         ORDER BY created_at DESC 
-        //         LIMIT 5
-        //     `);
-        //     recentAnnouncements = announcementsResult.rows;
-        // } catch (err) {
-        //     console.log('Announcements table not found, using empty array');
-        // }
+        try {
+            const announcementsResult = await pool.query(`
+                SELECT id, title, content, created_at
+                FROM announcements 
+                WHERE is_active = true
+                ORDER BY created_at DESC 
+                LIMIT 5
+            `);
+            recentAnnouncements = announcementsResult.rows;
+        } catch (err) {
+            console.log('Announcements table not found or query failed, using empty array');
+        }
 
         // Fetch recent courses for public display
         const recentCoursesResult = await pool.query(`

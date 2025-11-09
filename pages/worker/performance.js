@@ -1,87 +1,16 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { withAuth } from '../../lib/withAuth';
+import { getPerformanceData } from '../api/worker/performance'; // Adjust path as needed
 
-const WorkerPerformancePage = ({ user }) => {
-    const [performanceData, setPerformanceData] = useState(null);
-    const [evaluations, setEvaluations] = useState([]);
-    const [currentPeriod, setCurrentPeriod] = useState('current_year');
-    const [loading, setLoading] = useState(true);
+const WorkerPerformancePage = ({ user, performanceData, evaluations, currentPeriod }) => {
+    const router = useRouter();
 
-    useEffect(() => {
-        loadPerformanceData();
-    }, [currentPeriod, loadPerformanceData]);
-
-    const loadPerformanceData = useCallback(async () => {
-        try {
-            // Try to load real performance data from API
-            try {
-                const response = await fetch(`/api/worker/performance?period=${currentPeriod}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setPerformanceData(data.summary || null);
-                    setEvaluations(data.evaluations || []);
-                } else {
-                    setPerformanceData(null);
-                    setEvaluations([]);
-                }
-            } catch (error) {
-                console.error('Failed to load performance data:', error);
-                setPerformanceData(null);
-                setEvaluations([]);
-            }
-        } catch (error) {
-            console.error('Error loading performance data:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [currentPeriod]);
-
-    const generateMockPerformanceData = () => {
-        return {
-            summary: {
-                overall_rating: 4.2,
-                punctuality_rating: 4.5,
-                quality_rating: 4.0,
-                communication_rating: 4.3,
-                teamwork_rating: 4.1,
-                initiative_rating: 3.9,
-                total_evaluations: 6,
-                improvement_trend: 'positive', // 'positive', 'negative', 'stable'
-                last_evaluation_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-                tasks_completed: 45,
-                tasks_on_time: 42,
-                average_task_rating: 4.1
-            },
-            evaluations: [
-                {
-                    id: 1,
-                    period_start: '2024-01-01',
-                    period_end: '2024-03-31',
-                    overall_rating: 4.2,
-                    evaluator_name: 'أحمد محمد',
-                    evaluator_position: 'مدير القسم',
-                    strengths: 'التزام بالمواعيد، جودة العمل، التعاون مع الفريق',
-                    areas_for_improvement: 'تطوير مهارات التواصل، المبادرة في حل المشاكل',
-                    goals_next_period: 'حضور دورة تدريبية في التواصل، قيادة مشروع صغير',
-                    status: 'finalized',
-                    created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-                },
-                {
-                    id: 2,
-                    period_start: '2023-10-01',
-                    period_end: '2023-12-31',
-                    overall_rating: 3.8,
-                    evaluator_name: 'فاطمة علي',
-                    evaluator_position: 'مشرف العمليات',
-                    strengths: 'دقة في العمل، استجابة سريعة للطلبات',
-                    areas_for_improvement: 'إدارة الوقت، العمل تحت الضغط',
-                    goals_next_period: 'تحسين إدارة الوقت، تطوير مهارات التعامل مع الضغط',
-                    status: 'finalized',
-                    created_at: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString()
-                }
-            ]
-        };
+    const handlePeriodChange = (e) => {
+        const newPeriod = e.target.value;
+        router.push(`/worker/performance?period=${newPeriod}`);
     };
 
     const getRatingColor = (rating) => {
@@ -109,13 +38,14 @@ const WorkerPerformancePage = ({ user }) => {
     };
 
     const getCompletionPercentage = () => {
-        if (!performanceData) return 0;
+        if (!performanceData || !performanceData.tasks_completed || performanceData.tasks_completed === 0) return 0;
         return Math.round((performanceData.tasks_on_time / performanceData.tasks_completed) * 100);
     };
 
     return (
         <Layout user={user}>
             <style jsx>{`
+                /* Styles remain the same */
                 .performance-container {
                     padding: 20px;
                 }
@@ -335,15 +265,13 @@ const WorkerPerformancePage = ({ user }) => {
                     margin-top: 10px;
                     font-size: 0.9rem;
                 }
-                .loading {
-                    text-align: center;
-                    padding: 40px;
-                    color: #666;
-                }
                 .empty-state {
                     text-align: center;
                     padding: 40px;
                     color: #666;
+                    background: white;
+                    border-radius: 8px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
                 }
                 @media (max-width: 768px) {
                     .section-header {
@@ -367,189 +295,189 @@ const WorkerPerformancePage = ({ user }) => {
                     <p>متابعة وتحليل الأداء الوظيفي والتطوير المهني</p>
                 </div>
 
-                {loading ? (
-                    <div className="loading">
-                        <i className="fas fa-spinner fa-spin fa-2x"></i>
-                        <p>جاري تحميل بيانات الأداء...</p>
-                    </div>
-                ) : (
+                {performanceData ? (
                     <>
                         {/* Performance Summary */}
-                        {performanceData && (
-                            <>
-                                <div className="performance-summary">
-                                    <div className="summary-card">
-                                        <div 
-                                            className="rating-circle"
-                                            style={{ backgroundColor: getRatingColor(performanceData.overall_rating) }}
-                                        >
-                                            {performanceData.overall_rating.toFixed(1)}
-                                        </div>
-                                        <div className="rating-label">التقييم العام</div>
-                                        <div className="rating-description">
-                                            {getRatingText(performanceData.overall_rating)}
-                                        </div>
-                                        <div className="trend-indicator">
-                                            <i 
-                                                className={`fas ${getTrendIcon(performanceData.improvement_trend).icon}`}
-                                                style={{ color: getTrendIcon(performanceData.improvement_trend).color }}
-                                            ></i>
-                                            <span>اتجاه التحسن</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="summary-card">
-                                        <div 
-                                            className="rating-circle"
-                                            style={{ backgroundColor: '#17a2b8' }}
-                                        >
-                                            {performanceData.total_evaluations}
-                                        </div>
-                                        <div className="rating-label">عدد التقييمات</div>
-                                        <div className="rating-description">
-                                            آخر تقييم: {new Date(performanceData.last_evaluation_date).toLocaleDateString('ar-EG')}
-                                        </div>
-                                    </div>
-
-                                    <div className="summary-card">
-                                        <div 
-                                            className="rating-circle"
-                                            style={{ backgroundColor: '#28a745' }}
-                                        >
-                                            {getCompletionPercentage()}%
-                                        </div>
-                                        <div className="rating-label">معدل الإنجاز في الوقت</div>
-                                        <div className="rating-description">
-                                            {performanceData.tasks_on_time} من {performanceData.tasks_completed} مهمة
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Stats Overview */}
-                                <div className="stats-overview">
-                                    <div className="stat-box">
-                                        <div className="stat-number">{performanceData.tasks_completed}</div>
-                                        <div className="stat-label">المهام المكتملة</div>
-                                    </div>
-                                    <div className="stat-box">
-                                        <div className="stat-number">{performanceData.average_task_rating.toFixed(1)}</div>
-                                        <div className="stat-label">متوسط تقييم المهام</div>
-                                    </div>
-                                    <div className="stat-box">
-                                        <div className="stat-number">{performanceData.punctuality_rating.toFixed(1)}</div>
-                                        <div className="stat-label">الالتزام بالمواعيد</div>
-                                    </div>
-                                    <div className="stat-box">
-                                        <div className="stat-number">{performanceData.teamwork_rating.toFixed(1)}</div>
-                                        <div className="stat-label">العمل الجماعي</div>
-                                    </div>
-                                </div>
-
-                                {/* Detailed Ratings */}
-                                <div className="detailed-ratings">
-                                    <h2 className="section-title">تفصيل التقييمات</h2>
-                                    <div className="ratings-grid">
-                                        {[
-                                            { name: 'الالتزام بالمواعيد', value: performanceData.punctuality_rating, icon: 'fa-clock' },
-                                            { name: 'جودة العمل', value: performanceData.quality_rating, icon: 'fa-star' },
-                                            { name: 'التواصل', value: performanceData.communication_rating, icon: 'fa-comments' },
-                                            { name: 'العمل الجماعي', value: performanceData.teamwork_rating, icon: 'fa-users' },
-                                            { name: 'المبادرة', value: performanceData.initiative_rating, icon: 'fa-lightbulb' }
-                                        ].map((rating, index) => (
-                                            <div key={index} className="rating-item">
-                                                <div className="rating-value" style={{ color: getRatingColor(rating.value) }}>
-                                                    <i className={`fas ${rating.icon}`}></i> {rating.value.toFixed(1)}
-                                                </div>
-                                                <div className="rating-bar">
-                                                    <div 
-                                                        className="rating-fill"
-                                                        style={{ 
-                                                            width: `${(rating.value / 5) * 100}%`,
-                                                            backgroundColor: getRatingColor(rating.value)
-                                                        }}
-                                                    ></div>
-                                                </div>
-                                                <div className="rating-name">{rating.name}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </>
-                        )}
-
-                        {/* Evaluations History */}
-                        <div className="evaluations-section">
-                            <div className="section-header">
-                                <h2 className="section-title">سجل التقييمات</h2>
-                                <select 
-                                    className="period-selector"
-                                    value={currentPeriod}
-                                    onChange={(e) => setCurrentPeriod(e.target.value)}
+                        <div className="performance-summary">
+                            <div className="summary-card">
+                                <div 
+                                    className="rating-circle"
+                                    style={{ backgroundColor: getRatingColor(performanceData.overall_rating) }}
                                 >
-                                    <option value="current_year">السنة الحالية</option>
-                                    <option value="last_year">السنة الماضية</option>
-                                    <option value="all_time">جميع الفترات</option>
-                                </select>
+                                    {performanceData.overall_rating.toFixed(1)}
+                                </div>
+                                <div className="rating-label">التقييم العام</div>
+                                <div className="rating-description">
+                                    {getRatingText(performanceData.overall_rating)}
+                                </div>
+                                <div className="trend-indicator">
+                                    <i 
+                                        className={`fas ${getTrendIcon(performanceData.improvement_trend).icon}`}
+                                        style={{ color: getTrendIcon(performanceData.improvement_trend).color }}
+                                    ></i>
+                                    <span>اتجاه التحسن</span>
+                                </div>
                             </div>
 
-                            {evaluations.length === 0 ? (
-                                <div className="empty-state">
-                                    <i className="fas fa-chart-bar fa-3x" style={{ color: '#ddd', marginBottom: '15px' }}></i>
-                                    <p>لا توجد تقييمات متاحة للفترة المحددة</p>
+                            <div className="summary-card">
+                                <div 
+                                    className="rating-circle"
+                                    style={{ backgroundColor: '#17a2b8' }}
+                                >
+                                    {performanceData.total_evaluations}
                                 </div>
-                            ) : (
-                                evaluations.map(evaluation => (
-                                    <div key={evaluation.id} className="evaluation-card">
-                                        <div className="evaluation-header">
-                                            <div>
-                                                <div className="evaluation-period">
-                                                    {new Date(evaluation.period_start).toLocaleDateString('ar-EG')} - {new Date(evaluation.period_end).toLocaleDateString('ar-EG')}
-                                                </div>
-                                                <div className="evaluator-info">
-                                                    <i className="fas fa-user"></i> {evaluation.evaluator_name} - {evaluation.evaluator_position}
-                                                </div>
-                                            </div>
-                                            <div className="evaluation-rating">
-                                                <div 
-                                                    className="overall-rating"
-                                                    style={{ backgroundColor: getRatingColor(evaluation.overall_rating) }}
-                                                >
-                                                    {evaluation.overall_rating.toFixed(1)}
-                                                </div>
-                                            </div>
+                                <div className="rating-label">عدد التقييمات</div>
+                                <div className="rating-description">
+                                    {performanceData.last_evaluation_date ? 
+                                        `آخر تقييم: ${new Date(performanceData.last_evaluation_date).toLocaleDateString('ar-EG')}`
+                                        : 'لا يوجد تقييمات بعد'
+                                    }
+                                </div>
+                            </div>
+
+                            <div className="summary-card">
+                                <div 
+                                    className="rating-circle"
+                                    style={{ backgroundColor: '#28a745' }}
+                                >
+                                    {getCompletionPercentage()}%
+                                </div>
+                                <div className="rating-label">معدل الإنجاز في الوقت</div>
+                                <div className="rating-description">
+                                    {performanceData.tasks_on_time} من {performanceData.tasks_completed} مهمة
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Stats Overview */}
+                        <div className="stats-overview">
+                            <div className="stat-box">
+                                <div className="stat-number">{performanceData.tasks_completed || 0}</div>
+                                <div className="stat-label">المهام المكتملة</div>
+                            </div>
+                            <div className="stat-box">
+                                <div className="stat-number">{(performanceData.average_task_rating || 0).toFixed(1)}</div>
+                                <div className="stat-label">متوسط تقييم المهام</div>
+                            </div>
+                            <div className="stat-box">
+                                <div className="stat-number">{(performanceData.punctuality_rating || 0).toFixed(1)}</div>
+                                <div className="stat-label">الالتزام بالمواعيد</div>
+                            </div>
+                            <div className="stat-box">
+                                <div className="stat-number">{(performanceData.teamwork_rating || 0).toFixed(1)}</div>
+                                <div className="stat-label">العمل الجماعي</div>
+                            </div>
+                        </div>
+
+                        {/* Detailed Ratings */}
+                        <div className="detailed-ratings">
+                            <h2 className="section-title">تفصيل التقييمات</h2>
+                            <div className="ratings-grid">
+                                {[
+                                    { name: 'الالتزام بالمواعيد', value: performanceData.punctuality_rating, icon: 'fa-clock' },
+                                    { name: 'جودة العمل', value: performanceData.quality_rating, icon: 'fa-star' },
+                                    { name: 'التواصل', value: performanceData.communication_rating, icon: 'fa-comments' },
+                                    { name: 'العمل الجماعي', value: performanceData.teamwork_rating, icon: 'fa-users' },
+                                    { name: 'المبادرة', value: performanceData.initiative_rating, icon: 'fa-lightbulb' }
+                                ].map((rating, index) => (
+                                    <div key={index} className="rating-item">
+                                        <div className="rating-value" style={{ color: getRatingColor(rating.value || 0) }}>
+                                            <i className={`fas ${rating.icon}`}></i> {(rating.value || 0).toFixed(1)}
                                         </div>
-
-                                        <div className="evaluation-details">
-                                            <div className="detail-section">
-                                                <div className="detail-title">
-                                                    <i className="fas fa-thumbs-up" style={{ color: '#28a745' }}></i>
-                                                    نقاط القوة
-                                                </div>
-                                                <div className="detail-content">{evaluation.strengths}</div>
-                                            </div>
-
-                                            <div className="detail-section">
-                                                <div className="detail-title">
-                                                    <i className="fas fa-arrow-up" style={{ color: '#ffc107' }}></i>
-                                                    مجالات التحسين
-                                                </div>
-                                                <div className="detail-content">{evaluation.areas_for_improvement}</div>
-                                            </div>
-
-                                            <div className="detail-section">
-                                                <div className="detail-title">
-                                                    <i className="fas fa-target" style={{ color: '#17a2b8' }}></i>
-                                                    أهداف الفترة القادمة
-                                                </div>
-                                                <div className="detail-content">{evaluation.goals_next_period}</div>
-                                            </div>
+                                        <div className="rating-bar">
+                                            <div 
+                                                className="rating-fill"
+                                                style={{ 
+                                                    width: `${((rating.value || 0) / 5) * 100}%`,
+                                                    backgroundColor: getRatingColor(rating.value || 0)
+                                                }}
+                                            ></div>
                                         </div>
+                                        <div className="rating-name">{rating.name}</div>
                                     </div>
-                                ))
-                            )}
+                                ))}
+                            </div>
                         </div>
                     </>
+                ) : (
+                     <div className="empty-state">
+                        <i className="fas fa-chart-bar fa-3x" style={{ color: '#ddd', marginBottom: '15px' }}></i>
+                        <h2>لا توجد بيانات أداء لعرضها</h2>
+                        <p>لم يتم تسجيل أي تقييمات أو مهام حتى الآن.</p>
+                    </div>
                 )}
+
+                {/* Evaluations History */}
+                <div className="evaluations-section">
+                    <div className="section-header">
+                        <h2 className="section-title">سجل التقييمات</h2>
+                        <select 
+                            className="period-selector"
+                            value={currentPeriod}
+                            onChange={handlePeriodChange}
+                        >
+                            <option value="current_year">السنة الحالية</option>
+                            <option value="last_year">السنة الماضية</option>
+                            <option value="all_time">جميع الفترات</option>
+                        </select>
+                    </div>
+
+                    {evaluations.length === 0 ? (
+                        <div className="empty-state">
+                            <i className="fas fa-file-alt fa-3x" style={{ color: '#ddd', marginBottom: '15px' }}></i>
+                            <p>لا توجد تقييمات متاحة للفترة المحددة</p>
+                        </div>
+                    ) : (
+                        evaluations.map(evaluation => (
+                            <div key={evaluation.id} className="evaluation-card">
+                                <div className="evaluation-header">
+                                    <div>
+                                        <div className="evaluation-period">
+                                            {new Date(evaluation.period_start).toLocaleDateString('ar-EG')} - {new Date(evaluation.period_end).toLocaleDateString('ar-EG')}
+                                        </div>
+                                        <div className="evaluator-info">
+                                            <i className="fas fa-user"></i> {evaluation.evaluator_name} - {evaluation.evaluator_position || 'مشرف'}
+                                        </div>
+                                    </div>
+                                    <div className="evaluation-rating">
+                                        <div 
+                                            className="overall-rating"
+                                            style={{ backgroundColor: getRatingColor(evaluation.overall_rating) }}
+                                        >
+                                            {evaluation.overall_rating.toFixed(1)}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="evaluation-details">
+                                    <div className="detail-section">
+                                        <div className="detail-title">
+                                            <i className="fas fa-thumbs-up" style={{ color: '#28a745' }}></i>
+                                            نقاط القوة
+                                        </div>
+                                        <div className="detail-content">{evaluation.strengths}</div>
+                                    </div>
+
+                                    <div className="detail-section">
+                                        <div className="detail-title">
+                                            <i className="fas fa-arrow-up" style={{ color: '#ffc107' }}></i>
+                                            مجالات التحسين
+                                        </div>
+                                        <div className="detail-content">{evaluation.areas_for_improvement}</div>
+                                    </div>
+
+                                    <div className="detail-section">
+                                        <div className="detail-title">
+                                            <i className="fas fa-target" style={{ color: '#17a2b8' }}></i>
+                                            أهداف الفترة القادمة
+                                        </div>
+                                        <div className="detail-content">{evaluation.goals_next_period}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
         </Layout>
     );
@@ -557,6 +485,7 @@ const WorkerPerformancePage = ({ user }) => {
 
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
+    const { period = 'current_year' } = context.query;
     
     if (user.role !== 'worker') {
         return {
@@ -567,11 +496,29 @@ export const getServerSideProps = withAuth(async (context) => {
         };
     }
 
-    return {
-        props: {
-            user: JSON.parse(JSON.stringify(user))
-        }
-    };
+    try {
+        const { summary, evaluations } = await getPerformanceData(user.id, period);
+
+        return {
+            props: {
+                user: JSON.parse(JSON.stringify(user)),
+                performanceData: summary,
+                evaluations,
+                currentPeriod: period
+            }
+        };
+    } catch (error) {
+        console.error("Error in getServerSideProps for worker performance:", error);
+        return {
+            props: {
+                user: JSON.parse(JSON.stringify(user)),
+                performanceData: null,
+                evaluations: [],
+                currentPeriod: period,
+                error: 'Failed to load performance data.'
+            }
+        };
+    }
 }, { roles: ['worker'] });
 
 export default WorkerPerformancePage;

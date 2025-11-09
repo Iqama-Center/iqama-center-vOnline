@@ -44,6 +44,12 @@ export default async function handler(req, res) {
                 return res.status(400).json({ message: 'Request is not pending.' });
             }
 
+            const allowedFields = ['full_name', 'email', 'phone', 'details'];
+            if (!allowedFields.includes(request.field_name)) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ message: `Field '${request.field_name}' cannot be updated.` });
+            }
+
             // Update the user's profile
             await client.query(
                 `UPDATE users SET ${request.field_name} = $1 WHERE id = $2`,

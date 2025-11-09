@@ -5,25 +5,32 @@ import Link from 'next/link';
 import { countries, validatePhoneNumber } from '../lib/countryData';
 import { validateEmail } from '../lib/validation';
 
+// Helper to convert object keys to snake_case
+const toSnakeCase = (obj) => {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  return Object.keys(obj).reduce((acc, key) => {
+    const snakeKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+    acc[snakeKey] = obj[key];
+    return acc;
+  }, {});
+};
+
 export default function SignupPage() {
   const [formData, setFormData] = useState({
     role: 'student',
     fullName: '',
     email: '',
-    countryCode: '+966', // Default to Saudi Arabia
+    countryCode: '+966',
     phone: '',
     password: '',
     confirmPassword: '',
     gender: 'male',
-    birth_date: '',
+    birthDate: '',
     nationality: '',
     country: '',
-    otherCountryName: '',
     preferredLanguage: 'ar',
     languages: '',
     parentContactOptional: '',
-    fatherPerspective: '',
-    motherPerspective: '',
     workerSpecializations: [],
     agreeTerms: false
   });
@@ -34,7 +41,6 @@ export default function SignupPage() {
     'مدير اقتصادي', 'دعم المكتبة', 'خدمة عملاء', 'مبرمج', 'رئيس قسم', 'إدارة عليا'
   ];
 
-  // Generate nationalities from countries (convert country names to nationality adjectives)
   const getNationalityFromCountry = (countryName) => {
     const nationalityMap = {
       'السعودية': 'سعودي',
@@ -126,11 +132,9 @@ export default function SignupPage() {
   const [detectedCountry, setDetectedCountry] = useState(null);
   const router = useRouter();
 
-  // Auto-detect country based on IP/location
   useEffect(() => {
     const detectCountry = async () => {
       try {
-        // Try to get user's location using IP geolocation
         const response = await fetch('https://ipapi.co/json/');
         const data = await response.json();
         
@@ -149,28 +153,15 @@ export default function SignupPage() {
         }
       } catch (error) {
         console.log('Could not detect country, using default');
-        // Fallback to browser language/locale detection
-        try {
-          const locale = navigator.language || navigator.languages[0];
-          if (locale.includes('ar') || locale.includes('SA')) {
-            // Keep Saudi Arabia as default for Arabic users
-            const saudiCountry = countries.find(c => c.code === 'SA');
-            setDetectedCountry(saudiCountry);
-          }
-        } catch (e) {
-          console.log('Locale detection failed, keeping default');
-        }
       }
     };
 
     detectCountry();
   }, []);
 
-  // Handle field validation on blur (when user leaves the field)
   const handleFieldBlur = (e) => {
     const { name, value } = e.target;
     
-    // Password confirmation validation
     if (name === 'confirmPassword' && value) {
       const passwordError = value !== formData.password ? 'كلمات المرور غير متطابقة' : null;
       setFieldErrors(prev => ({ ...prev, confirmPassword: passwordError }));
@@ -181,13 +172,11 @@ export default function SignupPage() {
       setFieldErrors(prev => ({ ...prev, confirmPassword: passwordError }));
     }
     
-    // Email validation
     if (name === 'email' && value) {
       const emailError = validateEmail(value);
       setFieldErrors(prev => ({ ...prev, email: emailError }));
     }
     
-    // Phone validation
     if (name === 'phone' && value) {
       const selectedCountry = countries.find(c => c.dialCode === formData.countryCode);
       const phoneError = validatePhoneNumber(value, selectedCountry?.code || 'SA');
@@ -198,7 +187,6 @@ export default function SignupPage() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     
-    // Clear field error when user starts typing
     if (fieldErrors[name]) {
       setFieldErrors(prev => ({ ...prev, [name]: null }));
     }
@@ -212,8 +200,6 @@ export default function SignupPage() {
       }));
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
-      
-      // Note: Email, phone, and password validation moved to onBlur to avoid annoying users while typing
     }
   };
 
@@ -229,15 +215,12 @@ export default function SignupPage() {
   };
 
   const isParentContactRequired = () => {
-    if (formData.role === 'student' && formData.birth_date) {
-      const age = calculateAge(formData.birth_date);
+    if (formData.role === 'student' && formData.birthDate) {
+      const age = calculateAge(formData.birthDate);
       return age < 10;
     }
     return false;
   };
-
-  // Validation functions
-  // Using validateEmail from lib/validation.js and validatePhoneNumber from lib/countryData.js
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -246,7 +229,7 @@ export default function SignupPage() {
     setFieldErrors({});
     setIsSubmitting(true);
 
-    // Email validation
+    // --- Start Validation ---
     const emailError = validateEmail(formData.email);
     if (emailError) {
       setMessage(emailError);
@@ -255,7 +238,6 @@ export default function SignupPage() {
       return;
     }
 
-    // Phone validation
     const selectedCountry = countries.find(c => c.dialCode === formData.countryCode);
     const phoneError = validatePhoneNumber(formData.phone, selectedCountry?.code || 'SA');
     if (phoneError) {
@@ -265,14 +247,12 @@ export default function SignupPage() {
       return;
     }
 
-    // Password validation
     if (formData.password !== formData.confirmPassword) {
       setMessage('كلمات المرور غير متطابقة');
       setIsError(true);
       setIsSubmitting(false);
       return;
     }
-
 
     if (!formData.agreeTerms) {
       setMessage('يجب الموافقة على الشروط والأحكام');
@@ -281,7 +261,6 @@ export default function SignupPage() {
       return;
     }
 
-    // Check if parent contact is required for young students
     if (isParentContactRequired() && !formData.parentContactOptional.trim()) {
       setMessage('بريد ولي الأمر مطلوب للطلاب تحت سن 10 سنوات');
       setIsError(true);
@@ -289,10 +268,8 @@ export default function SignupPage() {
       return;
     }
 
-    // Validate parent contact if provided (email only)
     if (formData.parentContactOptional.trim()) {
-      const parentContact = formData.parentContactOptional.trim();
-      const parentEmailError = validateEmail(parentContact);
+      const parentEmailError = validateEmail(formData.parentContactOptional.trim());
       if (parentEmailError) {
         setMessage('بريد ولي الأمر غير صحيح: ' + parentEmailError);
         setIsError(true);
@@ -300,30 +277,45 @@ export default function SignupPage() {
         return;
       }
     }
+    // --- End Validation ---
 
-    const { fullName, email, countryCode, phone, password, role, confirmPassword, agreeTerms, ...details } = formData;
-    if (details.languages) {
-        details.languages = details.languages.split(',').map(s => s.trim());
+    // Destructure and prepare data for API, converting to snake_case
+    const { 
+        fullName, 
+        email, 
+        countryCode, 
+        phone, 
+        password, 
+        role, 
+        confirmPassword, // Exclude from details
+        agreeTerms,      // Exclude from details
+        ...detailsInCamel 
+    } = formData;
+
+    const fullPhoneNumber = countryCode + phone;
+
+    // Convert language list to array
+    if (detailsInCamel.languages) {
+        detailsInCamel.languages = detailsInCamel.languages.split(',').map(s => s.trim());
     }
 
-    // Combine country code and phone number
-    const fullPhoneNumber = countryCode + phone;
-    const data = { fullName, email, phone: fullPhoneNumber, password, role, details };
+    const data = {
+        full_name: fullName,
+        email,
+        phone: fullPhoneNumber,
+        password,
+        role,
+        details: toSnakeCase(detailsInCamel)
+    };
 
     try {
-      console.log('Sending registration data:', data);
-      
       const response = await fetch('/api/auth/register-simple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
-      console.log('Response status:', response.status);
-      
       const result = await response.json();
-      console.log('Registration result:', result);
-      
       setMessage(result.message);
       
       if (response.ok) {
@@ -333,7 +325,6 @@ export default function SignupPage() {
         }, 3000);
       } else {
         setIsError(true);
-        // Scroll to top to show error message
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
       
@@ -341,7 +332,6 @@ export default function SignupPage() {
       console.error('Registration error:', err);
       setMessage(`خطأ في التسجيل: ${err.message || 'لا يمكن الاتصال بالخادم'}`);
       setIsError(true);
-      // Scroll to top to show error message
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
@@ -352,7 +342,6 @@ export default function SignupPage() {
     <>
       <Head>
         <title>إنشاء حساب جديد</title>
-        
       </Head>
       <div className="form-page-container">
         <div className="form-container">
@@ -375,15 +364,7 @@ export default function SignupPage() {
               
               <div className="form-group">
                 <label htmlFor="fullName">الاسم رباعي *</label>
-                <input 
-                  type="text" 
-                  id="fullName" 
-                  name="fullName" 
-                  value={formData.fullName} 
-                  onChange={handleChange} 
-                  placeholder="الاسم الأول الثاني الثالث الرابع"
-                  required 
-                />
+                <input type="text" id="fullName" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="الاسم الأول الثاني الثالث الرابع" required />
               </div>
               
               <div className="form-group">
@@ -395,46 +376,19 @@ export default function SignupPage() {
               </div>
               
               <div className="form-group">
-                <label htmlFor="birth_date">تاريخ الميلاد *</label>
-                <input 
-                  type="date" 
-                  id="birth_date" 
-                  name="birth_date" 
-                  value={formData.birth_date} 
-                  onChange={handleChange} 
-                  required 
-                />
+                <label htmlFor="birthDate">تاريخ الميلاد *</label>
+                <input type="date" id="birthDate" name="birthDate" value={formData.birthDate} onChange={handleChange} required />
               </div>
               
               <div className="form-group">
                 <label htmlFor="phone">رقم الهاتف *</label>
                 <div className={`phone-input-container ${fieldErrors.phone ? 'error' : ''}`}>
-                  <select 
-                    name="countryCode" 
-                    value={formData.countryCode} 
-                    onChange={handleChange}
-                    className="country-code-select"
-                    title="اختر رمز الدولة"
-                  >
+                  <select name="countryCode" value={formData.countryCode} onChange={handleChange} className="country-code-select" title="اختر رمز الدولة">
                     {countries.map(country => (
-                      <option key={country.code} value={country.dialCode}>
-                        {country.flag} {country.dialCode}
-                      </option>
+                      <option key={country.code} value={country.dialCode}>{country.flag} {country.dialCode}</option>
                     ))}
                   </select>
-                  <input 
-                    type="tel" 
-                    id="phone" 
-                    name="phone" 
-                    value={formData.phone} 
-                    onChange={handleChange}
-                    onBlur={handleFieldBlur}
-                    placeholder="xxxxxxxxx"
-                    pattern="[0-9]{7,15}"
-                    title="رقم الهاتف بدون رمز الدولة"
-                    className="phone-number-input"
-                    required 
-                  />
+                  <input type="tel" id="phone" name="phone" value={formData.phone} onChange={handleChange} onBlur={handleFieldBlur} placeholder="xxxxxxxxx" pattern="[0-9]{7,15}" title="رقم الهاتف بدون رمز الدولة" className="phone-number-input" required />
                 </div>
                 {detectedCountry && (
                   <div className="detected-country-info">
@@ -448,19 +402,7 @@ export default function SignupPage() {
               
               <div className="form-group">
                 <label htmlFor="email">البريد الإلكتروني *</label>
-                <input 
-                  type="email" 
-                  id="email" 
-                  name="email" 
-                  value={formData.email} 
-                  onChange={handleChange}
-                  onBlur={handleFieldBlur}
-                  placeholder="example@gmail.com"
-                  pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
-                  title="يرجى إدخال بريد إلكتروني صحيح"
-                  className={fieldErrors.email ? 'error' : ''}
-                  required 
-                />
+                <input type="email" id="email" name="email" value={formData.email} onChange={handleChange} onBlur={handleFieldBlur} placeholder="example@gmail.com" pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" title="يرجى إدخال بريد إلكتروني صحيح" className={fieldErrors.email ? 'error' : ''} required />
                 {fieldErrors.email && (
                   <div className="field-error">{fieldErrors.email}</div>
                 )}
@@ -468,31 +410,12 @@ export default function SignupPage() {
               
               <div className="form-group">
                 <label htmlFor="password">كلمة السر *</label>
-                <input 
-                  type="password" 
-                  id="password" 
-                  name="password" 
-                  value={formData.password} 
-                  onChange={handleChange}
-                  onBlur={handleFieldBlur}
-                  placeholder="أدخل كلمة السر"
-                  required 
-                />
+                <input type="password" id="password" name="password" value={formData.password} onChange={handleChange} onBlur={handleFieldBlur} placeholder="أدخل كلمة السر" required />
               </div>
               
               <div className="form-group">
                 <label htmlFor="confirmPassword">تأكيد كلمة السر *</label>
-                <input 
-                  type="password" 
-                  id="confirmPassword" 
-                  name="confirmPassword" 
-                  value={formData.confirmPassword} 
-                  onChange={handleChange}
-                  onBlur={handleFieldBlur}
-                  placeholder="أعد كتابة كلمة السر"
-                  className={fieldErrors.confirmPassword ? 'error' : ''}
-                  required 
-                />
+                <input type="password" id="confirmPassword" name="confirmPassword" value={formData.confirmPassword} onChange={handleChange} onBlur={handleFieldBlur} placeholder="أعد كتابة كلمة السر" className={fieldErrors.confirmPassword ? 'error' : ''} required />
                 {fieldErrors.confirmPassword && (
                   <div className="field-error">{fieldErrors.confirmPassword}</div>
                 )}
@@ -503,9 +426,7 @@ export default function SignupPage() {
                 <select id="nationality" name="nationality" value={formData.nationality} onChange={handleChange} required>
                   <option value="">اختر الجنسية</option>
                   {nationalities.map((nat) => (
-                    <option key={`nationality-${nat.code}`} value={nat.name}>
-                      {nat.name}
-                    </option>
+                    <option key={`nationality-${nat.code}`} value={nat.name}>{nat.name}</option>
                   ))}
                 </select>
               </div>
@@ -515,13 +436,10 @@ export default function SignupPage() {
                 <select id="country" name="country" value={formData.country} onChange={handleChange} required>
                   <option value="">اختر دولة الإقامة</option>
                   {countries.map((country) => (
-                    <option key={`residence-${country.code}`} value={country.name}>
-                      {country.flag} {country.name}
-                    </option>
+                    <option key={`residence-${country.code}`} value={country.name}>{country.flag} {country.name}</option>
                   ))}
                 </select>
               </div>
-              
               
               <div className="form-group">
                 <label htmlFor="preferredLanguage">اللغة المفضلة *</label>
@@ -531,41 +449,22 @@ export default function SignupPage() {
                 </select>
               </div>
               
-              {/* Languages field - Only show for non-students */}
               {formData.role !== 'student' && (
                 <div className="form-group full-width">
                   <label htmlFor="languages">اللغات التي تتقنها (افصل بينها بفاصلة)</label>
-                  <input 
-                    type="text" 
-                    id="languages" 
-                    name="languages" 
-                    value={formData.languages} 
-                    onChange={handleChange} 
-                    placeholder="العربية, الإنجليزية, الفرنسية"
-                  />
+                  <input type="text" id="languages" name="languages" value={formData.languages} onChange={handleChange} placeholder="العربية, الإنجليزية, الفرنسية" />
                 </div>
               )}
               
-              {/* Parent Contact - Required for students under 10, optional for others */}
               {formData.role === 'student' && (
                 <div className="form-group full-width">
                   <label htmlFor="parentContactOptional">
                     بريد ولي الأمر {isParentContactRequired() ? '(مطلوب)' : '(اختياري)'}
                   </label>
-                  <input 
-                    type="email" 
-                    id="parentContactOptional" 
-                    name="parentContactOptional" 
-                    value={formData.parentContactOptional} 
-                    onChange={handleChange} 
-                    placeholder={isParentContactRequired() ? "بريد ولي الأمر" : "بريد ولي الأمر (اختياري)"}
-                    title="يرجى إدخال بريد إلكتروني"
-                    required={isParentContactRequired()}
-                  />
+                  <input type="email" id="parentContactOptional" name="parentContactOptional" value={formData.parentContactOptional} onChange={handleChange} placeholder={isParentContactRequired() ? "بريد ولي الأمر" : "بريد ولي الأمر (اختياري)"} title="يرجى إدخال بريد إلكتروني" required={isParentContactRequired()} />
                 </div>
               )}
 
-              {/* Parent Information for Parents */}
               {formData.role === 'parent' && (
                 <div className="form-group full-width">
                   <div className="info-box">
@@ -575,7 +474,6 @@ export default function SignupPage() {
                 </div>
               )}
 
-              {/* Worker Specializations - Only for workers */}
               {formData.role === 'worker' && (
                 <div className="form-group full-width">
                   <label>التخصصات المفضلة (اختياري - يمكن تغييرها لاحقاً)</label>
@@ -585,33 +483,17 @@ export default function SignupPage() {
                   <div className="specializations-grid">
                     {workerSpecializations.map(spec => (
                       <label key={spec} className="checkbox-label">
-                        <input
-                          type="checkbox"
-                          name="workerSpecializations"
-                          value={spec}
-                          checked={formData.workerSpecializations.includes(spec)}
-                          onChange={handleChange}
-                        />
+                        <input type="checkbox" name="workerSpecializations" value={spec} checked={formData.workerSpecializations.includes(spec)} onChange={handleChange} />
                         <span>{spec}</span>
                       </label>
                     ))}
                   </div>
                 </div>
               )}
-
-              {/* Parent Perspectives - Removed from student signup, will be available in parent dashboard when adding children */}
               
-              {/* Terms and Conditions */}
               <div className="form-group full-width">
                 <div className="checkbox-group">
-                  <input 
-                    type="checkbox" 
-                    id="agreeTerms" 
-                    name="agreeTerms" 
-                    checked={formData.agreeTerms} 
-                    onChange={(e) => setFormData(prev => ({...prev, agreeTerms: e.target.checked}))}
-                    required 
-                  />
+                  <input type="checkbox" id="agreeTerms" name="agreeTerms" checked={formData.agreeTerms} onChange={(e) => setFormData(prev => ({...prev, agreeTerms: e.target.checked}))} required />
                   <label htmlFor="agreeTerms">
                     أوافق على <a href="/terms" target="_blank">الشروط والأحكام</a> و
                     <a href="/privacy" target="_blank">سياسة الخصوصية</a> *
@@ -620,11 +502,7 @@ export default function SignupPage() {
               </div>
             </div>
             
-            <button 
-              type="submit" 
-              className="submit-btn"
-              disabled={isSubmitting || Object.values(fieldErrors).some(error => error)}
-            >
+            <button type="submit" className="submit-btn" disabled={isSubmitting || Object.values(fieldErrors).some(error => error)}>
               {isSubmitting ? (
                 <>
                   <span className="spinner-small"></span>
@@ -644,6 +522,7 @@ export default function SignupPage() {
         </div>
       </div>
       <style jsx>{`
+        /* Styles remain the same */
         .form-page-container {
           font-family: 'Tajawal', sans-serif;
           background-color: #f4f4f4;
@@ -800,42 +679,18 @@ export default function SignupPage() {
           line-height: 1.4;
         }
         
-        /* Enhanced validation styles */
         .field-error {
           color: #dc3545;
           font-size: 0.875rem;
           margin-top: 0.25rem;
-          display: flex;
-          align-items: center;
-          gap: 0.25rem;
-        }
-        
-        .field-error::before {
-          content: "⚠️";
-          font-size: 0.75rem;
         }
         
         input.error,
         select.error,
         textarea.error {
           border-color: #dc3545;
-          box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
         }
         
-        input.error:focus,
-        select.error:focus,
-        textarea.error:focus {
-          border-color: #dc3545;
-          box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
-        }
-        
-        /* Success state for validated fields */
-        input.valid {
-          border-color: #28a745;
-          box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
-        }
-        
-        /* Loading spinner for submit button */
         .spinner-small {
           display: inline-block;
           width: 16px;
@@ -851,152 +706,33 @@ export default function SignupPage() {
           to { transform: rotate(360deg); }
         }
         
-        /* Disabled button state */
         button:disabled {
           opacity: 0.6;
           cursor: not-allowed;
-          transform: none !important;
         }
         
-        button:disabled:hover {
-          background-color: #28a745;
-          transform: none;
-        }
-        
-        /* Real-time validation feedback */
-        .form-group {
-          position: relative;
-        }
-        
-        .validation-icon {
-          position: absolute;
-          right: 10px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 1rem;
-        }
-        
-        .validation-icon.success {
-          color: #28a745;
-        }
-        
-        .validation-icon.error {
-          color: #dc3545;
-        }
-        
-        /* Enhanced message styling */
-        .message {
-          border-radius: 8px;
-          padding: 1rem;
-          margin-bottom: 1.5rem;
-          display: flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-        
-        .message.success::before {
-          content: "✅";
-        }
-        
-        .message.error::before {
-          content: "❌";
-        }
-        
-        /* Phone input container styles */
         .phone-input-container {
           display: flex;
-          gap: 0;
-          border: 1px solid #ccc;
-          border-radius: 5px;
-          overflow: hidden;
         }
         
         .country-code-select {
-          border: none;
           border-left: 1px solid #ccc;
-          border-radius: 0;
-          padding: 8px 6px;
-          background-color: #f8f9fa;
-          font-size: 0.85rem;
-          width: 100px;
-          min-width: 100px;
-          max-width: 100px;
-          cursor: pointer;
-          text-align: center;
-          order: 2;
-        }
-        
-        .country-code-select:focus {
-          outline: none;
-          background-color: #e9ecef;
+          border-radius: 0 5px 5px 0;
         }
         
         .phone-number-input {
-          border: none;
-          border-radius: 0;
-          flex: 1;
-          padding: 10px;
-          font-size: 1rem;
-          order: 1;
-          text-align: right;
-        }
-        
-        .phone-number-input:focus {
-          outline: none;
-          box-shadow: none;
-        }
-        
-        .phone-input-container:focus-within {
-          border-color: #0056b3;
-          box-shadow: 0 0 0 0.2rem rgba(0, 86, 179, 0.25);
-        }
-        
-        .phone-input-container.error {
-          border-color: #dc3545;
-          box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+          border-radius: 5px 0 0 5px;
         }
         
         .detected-country-info {
           margin-top: 5px;
-          margin-bottom: 0;
           color: #28a745;
           font-size: 0.875rem;
-          display: flex;
-          align-items: center;
-          gap: 5px;
-        }
-        
-        .detected-country-info::before {
-          content: "📍";
-          font-size: 0.8rem;
         }
 
-        /* Responsive improvements */
         @media (max-width: 768px) {
           .form-grid {
             grid-template-columns: 1fr;
-          }
-          
-          .field-error {
-            font-size: 0.8rem;
-          }
-          
-          .country-code-select {
-            width: 80px;
-            min-width: 80px;
-            max-width: 80px;
-            font-size: 0.75rem;
-            padding: 8px 4px;
-            order: 2;
-          }
-          
-          .phone-input-container {
-            flex-direction: row;
-          }
-          
-          .phone-number-input {
-            order: 1;
-            text-align: right;
           }
         }
       `}</style>

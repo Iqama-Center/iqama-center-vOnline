@@ -369,79 +369,117 @@ const DashboardISR = ({
  */
 export async function getStaticProps() {
     try {
-        // Use static fallback data during build to avoid database connection issues
-        if (process.env.NODE_ENV === 'development') {
-            console.log('Using static fallback data for dashboard-isr build');
+        // Execute multiple queries in parallel for better performance
+        const [statsResult, coursesResult, announcementsResult] = await Promise.allSettled([
+            // Public statistics
+            pool.query(`
+                SELECT 
+                    (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_courses,
+                    (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
+                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL)) as total_teachers,
+                    (SELECT COUNT(*) FROM courses WHERE is_published = true AND is_launched = true) as active_courses
+            `),
+            
+            // Recent courses
+            pool.query(`
+                SELECT 
+                    c.id,
+                    c.name,
+                    c.description,
+                    c.status,
+                    c.created_at,
+                    COUNT(e.id) as student_count,
+                    u.full_name as teacher_name
+                FROM courses c
+                LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
+                LEFT JOIN users u ON c.teacher_id = u.id
+                WHERE c.status IN ('active', 'published') AND c.teacher_id IS NOT NULL
+                GROUP BY c.id, c.name, c.description, c.status, c.created_at, u.full_name
+                ORDER BY c.created_at DESC
+                LIMIT 6
+            `),
+            
+            // System announcements (if you have an announcements table)
+            pool.query(`
+                SELECT 
+                    id,
+                    title,
+                    content,
+                    created_at
+                FROM announcements 
+                WHERE is_active = true 
+                ORDER BY created_at DESC 
+                LIMIT 5
+            `).catch(() => ({ rows: [] })) // Fallback if announcements table doesn't exist
+        ]);
+
+        // Process statistics
+        let publicStats = {
+            totalCourses: 0,
+            totalStudents: 0,
+            totalTeachers: 0,
+            activeCourses: 0
+        };
+
+        if (statsResult.status === 'fulfilled') {
+            const stats = statsResult.value.rows[0] || {};
+            publicStats = {
+                totalCourses: parseInt(stats.total_courses || 0),
+                totalStudents: parseInt(stats.total_students || 0),
+                totalTeachers: parseInt(stats.total_teachers || 0),
+                activeCourses: parseInt(stats.active_courses || 0)
+            };
         }
-        return {
-        props: {
-            publicStats: {
-                totalCourses: 25,
-                totalStudents: 150,
-                totalTeachers: 12,
-                activeCourses: 20
-            },
-            recentCourses: [
-                {
-                    id: 1,
-                    name: "دورة تعليم القرآن الكريم",
-                    description: "دورة شاملة لتعليم القرآن الكريم والتجويد",
-                    enrolled_count: 25,
-                    teacher_name: "الأستاذ محمد أحمد",
-                    status: "active",
-                    created_at: new Date().toISOString()
-                },
-                {
-                    id: 2,
-                    name: "دورة الفقه الإسلامي",
-                    description: "دراسة أحكام الفقه الإسلامي وتطبيقاتها العملية",
-                    enrolled_count: 18,
-                    teacher_name: "الشيخ عبد الرحمن",
-                    status: "active",
-                    created_at: new Date().toISOString()
-                }
-            ],
-            systemAnnouncements: [
-                {
-                    id: 1,
-                    title: "إعلان هام",
-                    message: "مرحباً بكم في نظام إدارة الدورات",
-                    created_at: new Date().toISOString(),
-                    type: "info"
-                }
-            ],
-            lastUpdated: new Date().toISOString(),
+
+        // Process recent courses
+        let recentCourses = [];
+        if (coursesResult.status === 'fulfilled') {
+            recentCourses = coursesResult.value.rows.map(course => ({
+                ...course,
+                student_count: parseInt(course.student_count || 0),
+                created_at: course.created_at ? new Date(course.created_at).toISOString() : null
+            }));
+        }
+
+        // Process announcements
+        let systemAnnouncements = [];
+        if (announcementsResult.status === 'fulfilled') {
+            systemAnnouncements = announcementsResult.value.rows.map(announcement => ({
+                ...announcement,
+                created_at: announcement.created_at ? new Date(announcement.created_at).toISOString() : null
+            }));
+        }
+
+        return createSuccessResponse({
+            publicStats: safeSerialize(publicStats),
+            recentCourses: safeSerialize(recentCourses),
+            systemAnnouncements: safeSerialize(systemAnnouncements),
             metadata: {
                 queriesExecuted: 3,
-                statsSuccess: true,
-                coursesSuccess: true,
-                announcementsSuccess: true,
-                generatedAt: new Date().toISOString(),
-                dataSource: 'static_fallback'
+                statsSuccess: statsResult.status === 'fulfilled',
+                coursesSuccess: coursesResult.status === 'fulfilled',
+                announcementsSuccess: announcementsResult.status === 'fulfilled',
+                generatedAt: new Date().toISOString()
             }
-        },
-        revalidate: 300
-    };
+        }, REVALIDATION_TIMES.FREQUENT);
+
     } catch (error) {
-        console.error('Error in getStaticProps:', error);
-        return {
-            props: {
-                publicStats: {
-                    totalCourses: 0,
-                    totalStudents: 0,
-                    totalTeachers: 0,
-                    activeCourses: 0
-                },
-                recentCourses: [],
-                systemAnnouncements: [],
-                lastUpdated: new Date().toISOString(),
-                metadata: {
-                    error: true,
-                    dataSource: 'error_fallback'
-                }
+        console.error('Error in getStaticProps for dashboard:', error);
+        
+        return createErrorResponse({
+            publicStats: {
+                totalCourses: 0,
+                totalStudents: 0,
+                totalTeachers: 0,
+                activeCourses: 0
             },
-            revalidate: 60
-        };
+            recentCourses: [],
+            systemAnnouncements: [],
+            metadata: {
+                error: error.message,
+                generatedAt: new Date().toISOString()
+            }
+        }, REVALIDATION_TIMES.ERROR);
     }
 }
 

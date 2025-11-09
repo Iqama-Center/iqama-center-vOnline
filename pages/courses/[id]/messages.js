@@ -5,7 +5,7 @@ import { withAuth } from '../../../lib/withAuth';
 import pool from '../../../lib/db';
 import { safeProps, serializeDbRow } from '../../../lib/serializer';
 
-const CourseMessagesPage = ({ user, course }) => {
+const CourseMessagesPage = ({ user, course, enrollmentStatus }) => {
     return (
         <Layout user={user}>
             <style jsx>{`
@@ -29,19 +29,24 @@ const CourseMessagesPage = ({ user, course }) => {
                 .back-link:hover {
                     text-decoration: underline;
                 }
+                .status-highlight {
+                    font-weight: bold;
+                    color: #28a745;
+                }
             `}</style>
 
-            <a href={`/courses/${course.id}`} className="back-link">
-                ← العودة إلى صفحة الدورة
-            </a>
+            <Link href={`/courses/${course.id}`} className="back-link">
+                <i className="fas fa-arrow-right"></i> العودة إلى صفحة الدورة
+            </Link>
 
             <div className="page-header">
-                <h1>💬 مساحة المشاركة - {course.name}</h1>
+                <h1><i className="fas fa-comments"></i> ساحة النقاش - {course.name}</h1>
+                <p>مكان لطرح الأسئلة ومشاركة الأفكار مع زملائك والمدرس.</p>
             </div>
 
             <div className="course-info">
                 <p><strong>وصف الدورة:</strong> {course.description}</p>
-                <p><strong>حالة الدورة:</strong> {course.status === 'active' ? 'نشطة' : 'غير نشطة'}</p>
+                <p><strong>حالة التسجيل:</strong> <span className="status-highlight">{enrollmentStatus}</span></p>
             </div>
 
             <CourseMessages courseId={course.id} user={user} />
@@ -51,41 +56,60 @@ const CourseMessagesPage = ({ user, course }) => {
 
 export const getServerSideProps = withAuth(async (context) => {
     const { id } = context.params;
+    const { user } = context;
+    let client;
 
     try {
+        client = await pool.connect();
+        
         // Get course details
-        const courseResult = await pool.query('SELECT * FROM courses WHERE id = $1', [id]);
+        const courseResult = await client.query('SELECT * FROM courses WHERE id = $1', [id]);
         
         if (courseResult.rows.length === 0) {
             return { notFound: true };
         }
-
         const course = courseResult.rows[0];
 
-        // Check if user is enrolled in this course
-        const enrollment = await pool.query(
-            'SELECT * FROM enrollments WHERE user_id = $1 AND course_id = $2 AND status = $3',
-            [context.user.id, id, 'active']
+        // Check user's enrollment status
+        const enrollmentRes = await client.query(
+            `SELECT status, 
+                    CASE status
+                        WHEN 'active' THEN 'نشط'
+                        WHEN 'completed' THEN 'مكتمل'
+                        WHEN 'pending_payment' THEN 'في انتظار الدفع'
+                        ELSE 'غير مسجل'
+                    END as status_arabic
+             FROM enrollments 
+             WHERE user_id = $1 AND course_id = $2`,
+            [user.id, id]
         );
 
-        if (enrollment.rows.length === 0 && !['admin', 'head'].includes(context.user.role)) {
+        const enrollment = enrollmentRes.rows[0];
+        const enrollmentStatus = enrollment ? enrollment.status_arabic : 'غير مسجل';
+
+        // Allow access only if enrolled, or if user is an admin/head
+        if (!enrollment && !['admin', 'head', 'teacher'].includes(user.role)) {
             return {
                 redirect: {
                     destination: `/courses/${id}`,
                     permanent: false,
                 },
+                props: {},
             };
         }
 
         return {
             props: safeProps({
-                user: context.user,
-                course: serializeDbRow(course)
+                user,
+                course: serializeDbRow(course),
+                enrollmentStatus,
             })
         };
     } catch (error) {
-        console.error('Error fetching course:', error);
+        console.error('Error fetching course messages page:', error);
         return { notFound: true };
+    } finally {
+        if (client) client.release();
     }
 });
 

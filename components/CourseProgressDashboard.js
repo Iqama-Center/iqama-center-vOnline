@@ -40,7 +40,7 @@ const CourseProgressDashboard = ({ courseId, userRole = 'student' }) => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    courseId,
+                    course_id: courseId,
                     evaluateAll: ['admin', 'head', 'teacher'].includes(userRole)
                 })
             });
@@ -335,427 +335,69 @@ const CourseProgressDashboard = ({ courseId, userRole = 'student' }) => {
             </div>
 
             <style jsx>{`
-                .course-progress-dashboard {
-                    padding: 20px;
-                    max-width: 1200px;
-                    margin: 0 auto;
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    direction: rtl;
-                }
-
-                .dashboard-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 30px;
-                    padding: 20px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    border-radius: 15px;
-                    color: white;
-                }
-
-                .course-info h2 {
-                    margin: 0 0 10px 0;
-                    font-size: 24px;
-                }
-
-                .course-status {
-                    display: flex;
-                    gap: 10px;
-                }
-
-                .status-badge, .launched-badge {
-                    padding: 4px 12px;
-                    border-radius: 20px;
-                    font-size: 12px;
-                    font-weight: bold;
-                }
-
-                .status-badge.active {
-                    background: #4CAF50;
-                    color: white;
-                }
-
-                .launched-badge {
-                    background: #FF9800;
-                    color: white;
-                }
-
-                .course-stats {
-                    display: flex;
-                    gap: 20px;
-                }
-
-                .stat-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .stat-icon {
-                    width: 20px;
-                    height: 20px;
-                }
-
-                .evaluate-btn {
-                    background: #4CAF50;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 8px;
-                    cursor: pointer;
-                    font-weight: bold;
-                }
-
-                .evaluate-btn:hover {
-                    background: #45a049;
-                }
-
-                .overall-progress-section, .level-statistics-section, 
-                .daily-progress-section, .recent-activity-section {
-                    margin-bottom: 30px;
-                    background: white;
-                    border-radius: 15px;
-                    padding: 25px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-                }
-
-                .section-icon {
-                    width: 24px;
-                    height: 24px;
-                    margin-left: 10px;
-                }
-
-                .progress-cards {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                    gap: 20px;
-                    margin-top: 20px;
-                }
-
-                .progress-card {
-                    text-align: center;
-                    padding: 20px;
-                    border: 2px solid #f0f0f0;
-                    border-radius: 12px;
-                }
-
-                .progress-circle {
-                    width: 100px;
-                    height: 100px;
-                    margin: 15px auto;
-                    position: relative;
-                }
-
-                .circle-progress {
-                    width: 100%;
-                    height: 100%;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    position: relative;
-                }
-
-                .progress-text {
-                    font-weight: bold;
-                    font-size: 18px;
-                    color: #333;
-                }
-
-                .level-filter {
-                    display: flex;
-                    gap: 10px;
-                    margin-bottom: 20px;
-                    flex-wrap: wrap;
-                }
-
-                .level-filter button {
-                    padding: 8px 16px;
-                    border: 2px solid #ddd;
-                    background: white;
-                    border-radius: 20px;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                }
-
-                .level-filter button.active {
-                    background: #2196F3;
-                    color: white;
-                    border-color: #2196F3;
-                }
-
-                .level-stats-grid {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 20px;
-                }
-
-                .level-stat-card {
-                    border: 2px solid #f0f0f0;
-                    border-radius: 12px;
-                    padding: 20px;
-                }
-
-                .level-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 15px;
-                }
-
-                .user-count {
-                    background: #e3f2fd;
-                    color: #1976d2;
-                    padding: 4px 8px;
-                    border-radius: 12px;
-                    font-size: 12px;
-                }
-
-                .metric {
-                    margin-bottom: 15px;
-                }
-
-                .metric-label {
-                    display: block;
-                    margin-bottom: 5px;
-                    font-size: 14px;
-                    color: #666;
-                }
-
-                .metric-bar {
-                    width: 100%;
-                    height: 8px;
-                    background: #f0f0f0;
-                    border-radius: 4px;
-                    overflow: hidden;
-                    margin-bottom: 5px;
-                }
-
-                .metric-fill {
-                    height: 100%;
-                    background: #2196F3;
-                    transition: width 0.3s ease;
-                }
-
-                .metric-fill.quality {
-                    background: #4CAF50;
-                }
-
-                .metric-fill.timeliness {
-                    background: #FF9800;
-                }
-
-                .metric-value {
-                    font-weight: bold;
-                    color: #333;
-                }
-
-                .metric-value.large {
-                    font-size: 18px;
-                    color: #2196F3;
-                }
-
-                .metric.overall {
-                    text-align: center;
-                    padding-top: 10px;
-                    border-top: 1px solid #eee;
-                }
-
-                .users-list {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 5px;
-                    margin-top: 10px;
-                }
-
-                .user-tag {
-                    background: #f5f5f5;
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                    font-size: 12px;
-                    color: #666;
-                }
-
-                .daily-progress-timeline {
-                    display: flex;
-                    flex-direction: column;
-                    gap: 15px;
-                }
-
-                .day-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                    padding: 15px;
-                    border-radius: 10px;
-                    border: 2px solid #f0f0f0;
-                }
-
-                .day-item.current-or-past {
-                    background: #f8f9fa;
-                    border-color: #2196F3;
-                }
-
-                .day-number {
-                    width: 40px;
-                    height: 40px;
-                    border-radius: 50%;
-                    background: #2196F3;
-                    color: white;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-weight: bold;
-                    flex-shrink: 0;
-                }
-
-                .day-content {
-                    flex: 1;
-                }
-
-                .day-content h4 {
-                    margin: 0 0 5px 0;
-                }
-
-                .day-status {
-                    margin-bottom: 10px;
-                }
-
-                .status-released {
-                    color: #4CAF50;
-                    font-weight: bold;
-                }
-
-                .status-pending {
-                    color: #FF9800;
-                    font-weight: bold;
-                }
-
-                .day-progress {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                }
-
-                .progress-bar-small {
-                    flex: 1;
-                    height: 6px;
-                    background: #f0f0f0;
-                    border-radius: 3px;
-                    overflow: hidden;
-                }
-
-                .progress-fill-small {
-                    height: 100%;
-                    background: #4CAF50;
-                    transition: width 0.3s ease;
-                }
-
-                .activity-list {
-                    max-height: 400px;
-                    overflow-y: auto;
-                }
-
-                .activity-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                    padding: 15px;
-                    border-bottom: 1px solid #f0f0f0;
-                }
-
-                .activity-item:last-child {
-                    border-bottom: none;
-                }
-
-                .activity-icon {
-                    font-size: 24px;
-                    flex-shrink: 0;
-                }
-
-                .activity-content {
-                    flex: 1;
-                }
-
-                .activity-content p {
-                    margin: 0 0 5px 0;
-                }
-
-                .activity-grade {
-                    color: #4CAF50;
-                    font-weight: bold;
-                }
-
-                .activity-time {
-                    font-size: 12px;
-                    color: #666;
-                }
-
-                .loading-spinner, .error-message, .no-data {
-                    text-align: center;
-                    padding: 40px;
-                }
-
-                .spinner {
-                    width: 40px;
-                    height: 40px;
-                    border: 4px solid #f3f3f3;
-                    border-top: 4px solid #2196F3;
-                    border-radius: 50%;
-                    animation: spin 1s linear infinite;
-                    margin: 0 auto 20px;
-                }
-
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-
-                .retry-btn {
-                    background: #2196F3;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    margin-top: 10px;
-                }
-
-                .retry-btn:hover {
-                    background: #1976D2;
-                }
-
-                @media (max-width: 768px) {
-                    .dashboard-header {
-                        flex-direction: column;
-                        gap: 15px;
-                        text-align: center;
-                    }
-
-                    .course-stats {
-                        flex-direction: column;
-                        gap: 10px;
-                    }
-
-                    .progress-cards {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .level-stats-grid {
-                        grid-template-columns: 1fr;
-                    }
-
-                    .day-item {
-                        flex-direction: column;
-                        text-align: center;
-                    }
-
-                    .day-progress {
-                        flex-direction: column;
-                        gap: 5px;
-                    }
-                }
+                .course-progress-dashboard { padding: 20px; max-width: 1200px; margin: 0 auto; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; direction: rtl; }
+                .dashboard-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; color: white; }
+                .course-info h2 { margin: 0 0 10px 0; font-size: 24px; }
+                .course-status { display: flex; gap: 10px; }
+                .status-badge, .launched-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+                .status-badge.active { background: #4CAF50; color: white; }
+                .launched-badge { background: #FF9800; color: white; }
+                .course-stats { display: flex; gap: 20px; }
+                .stat-item { display: flex; align-items: center; gap: 8px; }
+                .stat-icon { width: 20px; height: 20px; }
+                .evaluate-btn { background: #4CAF50; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold; }
+                .evaluate-btn:hover { background: #45a049; }
+                .overall-progress-section, .level-statistics-section, .daily-progress-section, .recent-activity-section { margin-bottom: 30px; background: white; border-radius: 15px; padding: 25px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); }
+                .section-icon { width: 24px; height: 24px; margin-left: 10px; }
+                .progress-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-top: 20px; }
+                .progress-card { text-align: center; padding: 20px; border: 2px solid #f0f0f0; border-radius: 12px; }
+                .progress-circle { width: 100px; height: 100px; margin: 15px auto; position: relative; }
+                .circle-progress { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative; }
+                .progress-text { font-weight: bold; font-size: 18px; color: #333; }
+                .level-filter { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+                .level-filter button { padding: 8px 16px; border: 2px solid #ddd; background: white; border-radius: 20px; cursor: pointer; transition: all 0.3s; }
+                .level-filter button.active { background: #2196F3; color: white; border-color: #2196F3; }
+                .level-stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+                .level-stat-card { border: 2px solid #f0f0f0; border-radius: 12px; padding: 20px; }
+                .level-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+                .user-count { background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 12px; }
+                .metric { margin-bottom: 15px; }
+                .metric-label { display: block; margin-bottom: 5px; font-size: 14px; color: #666; }
+                .metric-bar { width: 100%; height: 8px; background: #f0f0f0; border-radius: 4px; overflow: hidden; margin-bottom: 5px; }
+                .metric-fill { height: 100%; background: #2196F3; transition: width 0.3s ease; }
+                .metric-fill.quality { background: #4CAF50; }
+                .metric-fill.timeliness { background: #FF9800; }
+                .metric-value { font-weight: bold; color: #333; }
+                .metric-value.large { font-size: 18px; color: #2196F3; }
+                .metric.overall { text-align: center; padding-top: 10px; border-top: 1px solid #eee; }
+                .users-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+                .user-tag { background: #f5f5f5; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #666; }
+                .daily-progress-timeline { display: flex; flex-direction: column; gap: 15px; }
+                .day-item { display: flex; align-items: center; gap: 15px; padding: 15px; border-radius: 10px; border: 2px solid #f0f0f0; }
+                .day-item.current-or-past { background: #f8f9fa; border-color: #2196F3; }
+                .day-number { width: 40px; height: 40px; border-radius: 50%; background: #2196F3; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; }
+                .day-content { flex: 1; }
+                .day-content h4 { margin: 0 0 5px 0; }
+                .day-status { margin-bottom: 10px; }
+                .status-released { color: #4CAF50; font-weight: bold; }
+                .status-pending { color: #FF9800; font-weight: bold; }
+                .day-progress { display: flex; align-items: center; gap: 10px; }
+                .progress-bar-small { flex: 1; height: 6px; background: #f0f0f0; border-radius: 3px; overflow: hidden; }
+                .progress-fill-small { height: 100%; background: #4CAF50; transition: width 0.3s ease; }
+                .activity-list { max-height: 400px; overflow-y: auto; }
+                .activity-item { display: flex; align-items: center; gap: 15px; padding: 15px; border-bottom: 1px solid #f0f0f0; }
+                .activity-item:last-child { border-bottom: none; }
+                .activity-icon { font-size: 24px; flex-shrink: 0; }
+                .activity-content { flex: 1; }
+                .activity-content p { margin: 0 0 5px 0; }
+                .activity-grade { color: #4CAF50; font-weight: bold; }
+                .activity-time { font-size: 12px; color: #666; }
+                .loading-spinner, .error-message, .no-data { text-align: center; padding: 40px; }
+                .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #2196F3; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 20px; }
+                @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+                .retry-btn { background: #2196F3; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+                .retry-btn:hover { background: #1976D2; }
+                @media (max-width: 768px) { .dashboard-header { flex-direction: column; gap: 15px; text-align: center; } .course-stats { flex-direction: column; gap: 10px; } .progress-cards { grid-template-columns: 1fr; } .level-stats-grid { grid-template-columns: 1fr; } .day-item { flex-direction: column; text-align: center; } .day-progress { flex-direction: column; gap: 5px; } }
             `}</style>
         </div>
     );

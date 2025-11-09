@@ -56,14 +56,14 @@ export default function LoginPage() {
           )}
           <form onSubmit={handleSubmit}>
             <div className="form-group">
-              <label htmlFor="emailOrPhone">البريد الإلكتروني</label>
+              <label htmlFor="emailOrPhone">البريد الإلكتروني أو رقم الهاتف</label>
               <input
-                type="email"
+                type="text"
                 id="emailOrPhone"
                 name="emailOrPhone"
                 value={emailOrPhone}
                 onChange={(e) => setEmailOrPhone(e.target.value)}
-                placeholder="example@gmail.com"
+                placeholder="example@gmail.com أو 05xxxxxxxx"
                 required
               />
             </div>

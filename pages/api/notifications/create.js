@@ -19,20 +19,25 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Missing required fields' });
         }
 
-        // Create notifications for multiple users
-        const notifications = [];
-        for (const userId of userIds) {
-            const result = await pool.query(
-                `INSERT INTO notifications (user_id, type, message, link, created_at) 
-                 VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP) RETURNING *`,
-                [userId, type, message, link || null]
-            );
-            notifications.push(result.rows[0]);
-        }
+        // Refactored to use a single bulk insert query for performance
+        const result = await pool.query(
+            `
+            INSERT INTO notifications (user_id, type, message, link, created_at)
+            SELECT user_id, $2, $3, $4, CURRENT_TIMESTAMP
+            FROM unnest($1::int[]) as user_id
+            RETURNING *
+            `,
+            [
+                userIds,
+                type,
+                message,
+                link || null
+            ]
+        );
 
         res.status(201).json({ 
             message: 'تم إرسال الإشعارات بنجاح',
-            notifications 
+            notifications: result.rows
         });
 
     } catch (err) {

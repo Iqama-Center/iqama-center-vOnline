@@ -7,7 +7,17 @@ import { useRouter } from 'next/router';
 import { safeSerialize } from '../lib/isrUtils';
 
 const PaymentConfirmationModal = ({ isOpen, onClose, payment, onConfirm }) => {
+    const [rejectionReason, setRejectionReason] = useState('');
+
     if (!isOpen) return null;
+
+    const handleReject = () => {
+        if (!rejectionReason) {
+            alert('يرجى إدخال سبب الرفض.');
+            return;
+        }
+        onConfirm(payment.id, 'rejected', rejectionReason);
+    };
 
     return (
         <div className="modal" style={{ display: 'flex' }}>
@@ -29,6 +39,16 @@ const PaymentConfirmationModal = ({ isOpen, onClose, payment, onConfirm }) => {
                         </a>
                     </div>
                 )}
+                <div style={{ marginTop: '15px' }}>
+                    <label htmlFor="rejectionReason">سبب الرفض (في حالة الرفض):</label>
+                    <textarea
+                        id="rejectionReason"
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                        style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', marginTop: '5px' }}
+                        rows="3"
+                    />
+                </div>
                 <div className="modal-actions" style={{ marginTop: '25px', display: 'flex', justifyContent: 'center', gap: '15px', padding: '10px 0' }}>
                     <button 
                         onClick={() => onConfirm(payment.id, 'paid')} 
@@ -63,7 +83,7 @@ const PaymentConfirmationModal = ({ isOpen, onClose, payment, onConfirm }) => {
                         <i className="fas fa-check"></i> تأكيد الدفعة
                     </button>
                     <button 
-                        onClick={() => onConfirm(payment.id, 'rejected')} 
+                        onClick={handleReject} 
                         style={{
                             backgroundColor: '#dc3545',
                             color: 'white',
@@ -112,7 +132,7 @@ const FinancePage = ({ user, initialPayments }) => {
             const response = await fetch(`/api/payments/${paymentId}/confirm`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: newStatus })
+                body: JSON.stringify({ status: newStatus, rejectionReason: newStatus === 'rejected' ? rejectionReason : undefined })
             });
 
             if (response.ok) {

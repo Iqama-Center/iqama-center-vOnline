@@ -27,15 +27,15 @@ export default async function handler(req, res) {
         } else if (req.method === 'POST') {
             // Create new auto-fill template
             const {
-                courseId,
-                meetingLinkTemplate,
-                contentUrlTemplate,
-                urlNumberingStart,
-                urlNumberingEnd,
-                defaultAssignments
+                courseId: course_id,
+                meetingLinkTemplate: meeting_link_template,
+                contentUrlTemplate: content_url_template,
+                urlNumberingStart: url_numbering_start,
+                urlNumberingEnd: url_numbering_end,
+                defaultAssignments: default_assignments
             } = req.body;
 
-            if (!courseId) {
+            if (!course_id) {
                 return res.status(400).json({ message: 'Course ID is required' });
             }
 
@@ -45,12 +45,12 @@ export default async function handler(req, res) {
                     url_numbering_start, url_numbering_end, default_assignments
                 ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
                 [
-                    courseId,
-                    meetingLinkTemplate,
-                    contentUrlTemplate,
-                    urlNumberingStart || 1,
-                    urlNumberingEnd || 10,
-                    JSON.stringify(defaultAssignments || {})
+                    course_id,
+                    meeting_link_template,
+                    content_url_template,
+                    url_numbering_start || 1,
+                    url_numbering_end || 10,
+                    JSON.stringify(default_assignments || {})
                 ]
             );
 
@@ -67,6 +67,14 @@ export default async function handler(req, res) {
                 return res.status(400).json({ message: 'Template ID is required' });
             }
 
+            const {
+                meetingLinkTemplate: meeting_link_template,
+                contentUrlTemplate: content_url_template,
+                urlNumberingStart: url_numbering_start,
+                urlNumberingEnd: url_numbering_end,
+                defaultAssignments: default_assignments
+            } = updateData;
+
             const updatedTemplate = await pool.query(`
                 UPDATE course_auto_fill_templates 
                 SET meeting_link_template = $1, content_url_template = $2,
@@ -74,11 +82,11 @@ export default async function handler(req, res) {
                     default_assignments = $5
                 WHERE id = $6 RETURNING *`,
                 [
-                    updateData.meetingLinkTemplate,
-                    updateData.contentUrlTemplate,
-                    updateData.urlNumberingStart,
-                    updateData.urlNumberingEnd,
-                    JSON.stringify(updateData.defaultAssignments || {}),
+                    meeting_link_template,
+                    content_url_template,
+                    url_numbering_start,
+                    url_numbering_end,
+                    JSON.stringify(default_assignments || {}),
                     id
                 ]
             );

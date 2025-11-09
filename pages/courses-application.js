@@ -59,14 +59,22 @@ const CoursesApplicationPage = ({ user }) => {
         if (filters.priceRange !== 'all') {
             const [min, max] = filters.priceRange.split('-').map(Number);
             filtered = filtered.filter(course => {
-                const price = course.details?.price || 0;
+                const price = course.course_fee || 0;
                 return price >= min && (max ? price <= max : true);
             });
         }
 
         // Availability filter
         if (filters.availability !== 'all') {
-            filtered = filtered.filter(course => course.availability_status === filters.availability);
+             filtered = filtered.filter(course => {
+                if (filters.availability === 'available') {
+                    return course.student_count < course.max_enrollment;
+                }
+                if (filters.availability === 'full') {
+                    return course.student_count >= course.max_enrollment;
+                }
+                return true;
+            });
         }
 
         setFilteredCourses(filtered);
@@ -81,7 +89,7 @@ const CoursesApplicationPage = ({ user }) => {
             const response = await fetch('/api/courses/apply', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ courseId })
+                body: JSON.stringify({ courseId, levelNumber: selectedCourse.level_number })
             });
 
             const result = await response.json();
@@ -157,163 +165,93 @@ const CoursesApplicationPage = ({ user }) => {
                                 value={filters.availability} 
                                 onChange={(e) => handleFilterChange('availability', e.target.value)}
                             >
-                                <option value="all">جميع الدورات</option>
-                                <option value="available">متاح</option>
-                                <option value="waiting">في انتظار المزيد</option>
+                                <option value="all">الكل</option>
+                                <option value="available">متاح للتسجيل</option>
                                 <option value="full">مكتمل العدد</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
-                {/* Application Status */}
-                {applicationStatus && (
-                    <div className={`status-message ${applicationStatus.type}`}>
-                        {applicationStatus.message}
-                    </div>
-                )}
-
                 {/* Courses Grid */}
                 <div className="courses-grid">
-                    {filteredCourses.length === 0 ? (
-                        <div className="no-courses">
-                            <h3>لا توجد دورات متاحة</h3>
-                            <p>جرب تغيير معايير البحث أو تحقق لاحقاً</p>
-                        </div>
-                    ) : (
-                        filteredCourses.map(course => (
-                            <div key={course.id} className="course-application-card">
-                                <div className="course-header">
-                                    <h3>{course.name}</h3>
-                                    <span className={`availability-badge ${course.availability_status}`}>
-                                        {course.availability_status === 'full' ? 'مكتمل العدد' :
-                                         course.availability_status === 'available' ? 'متاح' : 'في انتظار المزيد'}
-                                    </span>
-                                </div>
-                                
-                                <p className="course-description">{course.description}</p>
-                                
-                                <div className="course-details">
-                                    <div className="detail-row">
-                                        <span className="label">المدة:</span>
-                                        <span>{course.details?.duration_weeks || 8} أسابيع</span>
-                                    </div>
-                                    <div className="detail-row">
-                                        <span className="label">الرسوم:</span>
-                                        <span className="price">
-                                            {course.details?.price || 0} {course.details?.currency || 'ريال'}
-                                        </span>
-                                    </div>
-                                    <div className="detail-row">
-                                        <span className="label">المسجلين:</span>
-                                        <span>{course.current_enrollment}/{course.max_enrollment}</span>
-                                    </div>
-                                    <div className="detail-row">
-                                        <span className="label">المنشئ:</span>
-                                        <span>{course.creator_name}</span>
-                                    </div>
-                                </div>
-
-                                {/* Eligibility Check */}
-                                {course.eligible === false && (
-                                    <div className="eligibility-warning">
-                                        <h4>غير مؤهل للتسجيل:</h4>
-                                        <ul>
-                                            {course.eligibility_reasons?.map((reason, index) => (
-                                                <li key={index}>{reason}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-
-                                <div className="course-actions">
-                                    <button 
-                                        className="btn btn-primary"
-                                        onClick={() => openApplicationModal(course)}
-                                        disabled={course.availability_status === 'full' || course.eligible === false}
-                                    >
-                                        {course.availability_status === 'full' ? 'مكتمل العدد' : 
-                                         course.eligible === false ? 'غير مؤهل' : 'التقديم للدورة'}
-                                    </button>
-                                    <button 
-                                        className="btn btn-outline"
-                                        onClick={() => router.push(`/courses/${course.id}`)}
-                                    >
-                                        عرض التفاصيل
-                                    </button>
+                    {filteredCourses.map(course => (
+                        <div key={course.id} className="course-card-app">
+                            <div className="card-header">
+                                <h3>{course.name}</h3>
+                                <span className={`status-badge ${
+                                    course.student_count >= course.max_enrollment ? 'status-full' : 'status-available'
+                                }`}>
+                                    {course.student_count >= course.max_enrollment ? 'مكتمل' : 'متاح'}
+                                </span>
+                            </div>
+                            <div className="card-body">
+                                <p>{course.description}</p>
+                                <div className="course-meta">
+                                    <span><i className="fas fa-users"></i> {course.student_count} / {course.max_enrollment}</span>
+                                    <span><i className="fas fa-money-bill-wave"></i> {course.course_fee} ريال</span>
+                                    <span><i className="fas fa-calendar-alt"></i> يبدأ في: {new Date(course.start_date).toLocaleDateString()}</span>
                                 </div>
                             </div>
-                        ))
-                    )}
+                            <div className="card-footer">
+                                <button 
+                                    onClick={() => openApplicationModal(course)}
+                                    disabled={course.student_count >= course.max_enrollment || course.is_enrolled}
+                                    className="btn-apply"
+                                >
+                                    {course.is_enrolled ? 'مسجل بالفعل' : 'قدم الآن'}
+                                </button>
+                            </div>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Application Modal */}
                 {showModal && selectedCourse && (
-                    <div className="modal">
+                    <div className="modal-backdrop">
                         <div className="modal-content">
-                            <span className="close-button" onClick={() => setShowModal(false)}>×</span>
-                            <h3>تأكيد التقديم للدورة</h3>
-                            <div className="course-summary">
-                                <h4>{selectedCourse.name}</h4>
-                                <p>{selectedCourse.description}</p>
-                                <div className="summary-details">
-                                    <div className="detail-item">
-                                        <strong>المدة:</strong> {selectedCourse.details?.duration_weeks || 8} أسابيع
-                                    </div>
-                                    <div className="detail-item">
-                                        <strong>الرسوم:</strong> {selectedCourse.details?.price || 0} {selectedCourse.details?.currency || 'ريال'}
-                                    </div>
-                                    {selectedCourse.details?.price > 0 && (
-                                        <div className="payment-info">
-                                            <p><strong>ملاحظة:</strong> سيتم إنشاء فاتورة دفع بعد التسجيل. يجب دفع الرسوم خلال 7 أيام لتأكيد التسجيل.</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                            
+                            <h2>تأكيد التقديم</h2>
+                            <p>أنت على وشك التقديم لدورة: <strong>{selectedCourse.name}</strong></p>
+                            {selectedCourse.course_fee > 0 && (
+                                <p className="payment-notice">
+                                    هذه الدورة تتطلب رسومًا قدرها <strong>{selectedCourse.course_fee} ريال</strong>. 
+                                    سيتم إنشاء فاتورة لك بعد تأكيد التقديم.
+                                </p>
+                            )}
+                             {selectedCourse.level_number && (
+                                <p>سيتم تسجيلك في المستوى: <strong>{selectedCourse.level_number}</strong></p>
+                            )}
                             {applicationStatus && (
-                                <div className={`status-message ${applicationStatus.type}`}>
+                                <div className={`alert alert-${applicationStatus.type}`}>
                                     {applicationStatus.message}
                                 </div>
                             )}
-                            
                             <div className="modal-actions">
-                                <button 
-                                    className="btn btn-primary"
-                                    onClick={() => handleApply(selectedCourse.id)}
-                                >
-                                    تأكيد التقديم
-                                </button>
-                                <button 
-                                    className="btn btn-secondary"
-                                    onClick={() => setShowModal(false)}
-                                >
-                                    إلغاء
-                                </button>
+                                <button onClick={() => handleApply(selectedCourse.id)} className="btn-confirm">تأكيد التقديم</button>
+                                <button onClick={() => setShowModal(false)} className="btn-cancel">إلغاء</button>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
-
             <style jsx>{`
+                /* --- General Page Layout --- */
                 .courses-application-page {
                     max-width: 1200px;
                     margin: 0 auto;
                     padding: 20px;
                 }
-
                 .page-header {
                     text-align: center;
                     margin-bottom: 40px;
                 }
-
                 .page-header h1 {
                     color: var(--primary-color);
                     font-size: 2.5rem;
                     margin-bottom: 10px;
                 }
 
+                /* --- Filters Section --- */
                 .filters-section {
                     background: var(--white-color);
                     padding: 30px;
@@ -321,20 +259,17 @@ const CoursesApplicationPage = ({ user }) => {
                     box-shadow: var(--shadow-md);
                     margin-bottom: 30px;
                 }
-
                 .filters-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
                     gap: 20px;
                 }
-
                 .filter-group label {
                     display: block;
                     margin-bottom: 8px;
                     font-weight: 600;
                     color: var(--gray-700);
                 }
-
                 .filter-group input,
                 .filter-group select {
                     width: 100%;
@@ -344,154 +279,126 @@ const CoursesApplicationPage = ({ user }) => {
                     font-size: 1rem;
                     transition: border-color 0.3s ease;
                 }
-
                 .filter-group input:focus,
                 .filter-group select:focus {
                     outline: none;
                     border-color: var(--primary-color);
                 }
 
-                .status-message {
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                    text-align: center;
-                    font-weight: 500;
-                }
-
-                .status-message.success {
-                    background: #d4edda;
-                    color: #155724;
-                    border: 1px solid #c3e6cb;
-                }
-
-                .status-message.error {
-                    background: #f8d7da;
-                    color: #721c24;
-                    border: 1px solid #f5c6cb;
-                }
-
+                /* --- Courses Grid & Cards --- */
                 .courses-grid {
                     display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+                    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
                     gap: 30px;
                 }
 
-                .course-application-card {
+                /* CORRECTED: Renamed from .course-application-card */
+                .course-card-app {
                     background: var(--white-color);
                     border: 1px solid #e9ecef;
                     border-radius: 15px;
-                    padding: 30px;
                     box-shadow: var(--shadow-md);
                     transition: all 0.3s ease;
+                    display: flex;
+                    flex-direction: column;
                 }
-
-                .course-application-card:hover {
+                .course-card-app:hover {
                     transform: translateY(-5px);
                     box-shadow: var(--shadow-xl);
                 }
 
-                .course-header {
+                /* CORRECTED: Renamed from .course-header */
+                .card-header {
                     display: flex;
                     justify-content: space-between;
                     align-items: flex-start;
-                    margin-bottom: 15px;
+                    padding: 20px 25px;
+                    border-bottom: 1px solid #e9ecef;
                 }
-
-                .course-header h3 {
+                .card-header h3 {
                     color: var(--primary-color);
-                    font-size: 1.4rem;
+                    font-size: 1.3rem;
                     margin: 0;
                     flex: 1;
                 }
 
-                .course-description {
+                /* NEW: Styles for status badges */
+                .status-badge {
+                    padding: 5px 12px;
+                    border-radius: 20px;
+                    font-size: 0.8rem;
+                    font-weight: 600;
+                    color: #fff;
+                    white-space: nowrap;
+                }
+                .status-available {
+                    background-color: #28a745; /* Green */
+                }
+                .status-full {
+                    background-color: #dc3545; /* Red */
+                }
+
+                /* NEW: Styles for card body */
+                .card-body {
+                    padding: 20px 25px;
+                    flex-grow: 1; /* Makes body take available space */
+                }
+                .card-body p {
                     color: var(--gray-600);
                     line-height: 1.6;
                     margin-bottom: 20px;
                 }
 
-                .course-details {
-                    background: #f8f9fa;
-                    padding: 20px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                }
-
-                .detail-row {
+                /* NEW: Styles for course metadata */
+                .course-meta {
                     display: flex;
-                    justify-content: space-between;
-                    margin-bottom: 10px;
-                }
-
-                .detail-row:last-child {
-                    margin-bottom: 0;
-                }
-
-                .detail-row .label {
-                    font-weight: 600;
+                    flex-wrap: wrap;
+                    gap: 15px;
                     color: var(--gray-700);
+                    font-size: 0.9rem;
                 }
-
-                .price {
-                    color: var(--primary-color);
-                    font-weight: 600;
-                    font-size: 1.1rem;
-                }
-
-                .eligibility-warning {
-                    background: #fff3cd;
-                    border: 1px solid #ffeaa7;
-                    border-radius: 8px;
-                    padding: 15px;
-                    margin-bottom: 20px;
-                }
-
-                .eligibility-warning h4 {
-                    color: #856404;
-                    margin-bottom: 10px;
-                    font-size: 1rem;
-                }
-
-                .eligibility-warning ul {
-                    margin: 0;
-                    padding-right: 20px;
-                }
-
-                .eligibility-warning li {
-                    color: #856404;
-                    margin-bottom: 5px;
-                }
-
-                .course-actions {
+                .course-meta span {
                     display: flex;
-                    gap: 10px;
+                    align-items: center;
+                    gap: 5px;
                 }
 
-                .course-actions .btn {
-                    flex: 1;
+                /* NEW: Styles for card footer */
+                .card-footer {
+                    padding: 20px 25px;
+                    background-color: #f8f9fa;
+                    border-top: 1px solid #e9ecef;
+                    border-bottom-left-radius: 15px;
+                    border-bottom-right-radius: 15px;
+                }
+                
+                .btn-apply {
+                    width: 100%;
                     padding: 12px;
                     text-align: center;
                     text-decoration: none;
                     border-radius: 8px;
-                    font-weight: 500;
+                    font-weight: 600;
                     transition: all 0.3s ease;
                     border: none;
                     cursor: pointer;
+                    background-color: var(--primary-color);
+                    color: white;
+                    font-size: 1rem;
+                }
+                .btn-apply:hover:not(:disabled) {
+                    background-color: var(--primary-dark-color);
+                }
+                .btn-apply:disabled {
+                    background-color: #ccc;
+                    cursor: not-allowed;
                 }
 
-                .no-courses {
-                    grid-column: 1 / -1;
-                    text-align: center;
-                    padding: 60px 20px;
-                    color: var(--gray-600);
-                }
-
+                /* --- Loading Spinner --- */
                 .loading-container {
                     text-align: center;
                     padding: 60px 20px;
                 }
-
                 .loading-spinner {
                     width: 40px;
                     height: 40px;
@@ -501,60 +408,100 @@ const CoursesApplicationPage = ({ user }) => {
                     animation: spin 1s linear infinite;
                     margin: 0 auto 20px;
                 }
-
                 @keyframes spin {
                     0% { transform: rotate(0deg); }
                     100% { transform: rotate(360deg); }
                 }
 
-                .course-summary {
-                    margin-bottom: 20px;
+                /* --- Modal Styles (NEW & ESSENTIAL) --- */
+                .modal-backdrop {
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background: rgba(0, 0, 0, 0.6);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 1000;
                 }
-
-                .summary-details {
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin-top: 15px;
+                .modal-content {
+                    background: white;
+                    padding: 30px;
+                    border-radius: 15px;
+                    width: 90%;
+                    max-width: 500px;
+                    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                    text-align: center;
                 }
-
-                .detail-item {
-                    margin-bottom: 10px;
+                .modal-content h2 {
+                    margin-top: 0;
+                    color: var(--primary-color);
                 }
-
-                .payment-info {
+                .payment-notice {
                     background: #e7f3ff;
                     padding: 15px;
                     border-radius: 8px;
                     margin-top: 15px;
                     border: 1px solid #b3d9ff;
+                    font-size: 0.95rem;
                 }
-
+                .alert {
+                    padding: 15px;
+                    border-radius: 8px;
+                    margin: 20px 0;
+                    text-align: center;
+                    font-weight: 500;
+                }
+                .alert-success {
+                    background: #d4edda;
+                    color: #155724;
+                }
+                .alert-error {
+                    background: #f8d7da;
+                    color: #721c24;
+                }
                 .modal-actions {
                     display: flex;
                     gap: 15px;
-                    justify-content: flex-end;
+                    justify-content: center;
+                    margin-top: 30px;
                 }
-
-                .modal-actions .btn {
+                .modal-actions button {
                     padding: 12px 24px;
                     border: none;
                     border-radius: 8px;
                     cursor: pointer;
-                    font-weight: 500;
+                    font-weight: 600;
                     transition: all 0.3s ease;
+                    font-size: 1rem;
+                }
+                .btn-confirm {
+                    background-color: #28a745;
+                    color: white;
+                }
+                .btn-confirm:hover {
+                    background-color: #218838;
+                }
+                .btn-cancel {
+                    background-color: #6c757d;
+                    color: white;
+                }
+                .btn-cancel:hover {
+                    background-color: #5a6268;
                 }
             `}</style>
         </Layout>
     );
 };
 
-export const getServerSideProps = withAuth(async (context) => {
+export async function getServerSideProps(context) {
+    // This page fetches data on the client side, so we just pass the user.
+    const { user } = context;
     return {
-        props: {
-            user: JSON.parse(JSON.stringify(context.user))
-        }
+        props: { user }
     };
-});
+}
 
-export default CoursesApplicationPage;
+export default withAuth(CoursesApplicationPage);

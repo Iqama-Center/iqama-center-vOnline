@@ -1,17 +1,31 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Removed 'output: export' to enable API routes
-  // Your app uses API routes which require server-side rendering
-  images: { 
-    unoptimized: true 
-  },
-  // Optional: Add a trailing slash to all paths
-  // trailingSlash: true,
+  // The app uses API routes which require a server, so output cannot be 'export'.
   
-  // Webpack configuration to handle Node.js modules
+  // Configure Next.js Image Optimization
+  images: {
+    // Instead of unoptimized: true, we specify the domains that host images.
+    // This enables performance benefits like automatic resizing and modern format conversion.
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
+        pathname: '/**',
+      },
+      // TODO: Add the hostname for your production deployment (e.g., 'your-app.com')
+      // {
+      //   protocol: 'https',
+      //   hostname: 'your-app.com',
+      //   pathname: '/**',
+      // },
+    ],
+  },
+  
+  // Webpack configuration to handle Node.js modules on the client-side.
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Don't resolve Node.js modules on the client-side
+      // Exclude server-side modules from the client bundle to prevent errors and reduce bundle size.
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
@@ -20,25 +34,9 @@ const nextConfig = {
         dns: false,
         child_process: false,
         'pg-native': false,
-        crypto: false,
-        stream: false,
-        util: false,
-        url: false,
-        assert: false,
-        http: false,
-        https: false,
-        os: false,
-        path: false,
       };
-      
-      // Exclude pg and related modules from client bundle
-      config.externals = config.externals || [];
-      config.externals.push({
-        'pg': 'pg',
-        'pg-native': 'pg-native',
-        'pg-connection-string': 'pg-connection-string',
-      });
     }
+    // On the server, we don't need to do anything special.
     return config;
   },
 };

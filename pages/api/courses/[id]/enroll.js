@@ -74,7 +74,7 @@ export default async function handler(req, res) {
                 }
             } else {
                 // Fallback to course-level pricing
-                const cost = course.details?.cost || 0;
+                const cost = course.course_fee || 0;
                 if (cost > 0) {
                     enrollmentStatus = 'pending_payment';
                 } else {
@@ -93,12 +93,14 @@ export default async function handler(req, res) {
             throw new Error(`Invalid course ID: ${courseId}`);
         }
         
+        const { preferred_days, preferred_start_time } = req.body;
+
         const enrollment = await pool.query(
-            `INSERT INTO enrollments (user_id, course_id, status) 
-             VALUES ($1, $2, $3) 
-             ON CONFLICT (user_id, course_id) DO UPDATE SET status = $3
+            `INSERT INTO enrollments (user_id, course_id, status, preferred_days, preferred_start_time) 
+             VALUES ($1, $2, $3, $4, $5) 
+             ON CONFLICT (user_id, course_id) DO UPDATE SET status = EXCLUDED.status, preferred_days = EXCLUDED.preferred_days, preferred_start_time = EXCLUDED.preferred_start_time
              RETURNING *`, 
-            [parsedUserId, parsedCourseId, enrollmentStatus]
+            [parsedUserId, parsedCourseId, enrollmentStatus, preferred_days, preferred_start_time]
         );
         
         // Create payment record if user needs to pay
@@ -111,8 +113,9 @@ export default async function handler(req, res) {
                 currency = financialConfig.currency || 'EGP';
             } else {
                 // Fallback to course-level pricing
-                amount = course.details?.cost || 300;
-                currency = course.details?.currency || 'EGP';
+                const courseDetails = await pool.query('SELECT course_fee, details FROM courses WHERE id = $1', [courseId]);
+                amount = courseDetails.rows[0].course_fee || 0;
+                currency = courseDetails.rows[0].details?.currency || 'EGP';
             }
             
             await pool.query(`INSERT INTO payments (enrollment_id, amount, currency, due_date, status) VALUES ($1, $2, $3, NOW() + INTERVAL '7 day', 'due')`, [enrollment.rows[0].id, amount, currency]);
@@ -167,5 +170,8 @@ export default async function handler(req, res) {
         if (err.code === '23505') { return res.status(409).json({ message: 'أنت مسجل بالفعل في هذه الدورة.' }); }
         console.error("Enrollment error:", err);
         res.status(500).json({ message: "خطأ أثناء التقديم." });
+    }
+}
+�لتقديم." });
     }
 }

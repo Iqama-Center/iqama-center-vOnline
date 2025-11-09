@@ -10,7 +10,7 @@ const TeacherTasksPage = ({ user, courses, tasks }) => {
         title: '',
         description: '',
         course_id: '',
-        type: 'homework',
+        task_type: 'homework',
         due_date: '',
         max_score: 100,
         instructions: ''
@@ -47,7 +47,7 @@ const TeacherTasksPage = ({ user, courses, tasks }) => {
                     title: '',
                     description: '',
                     course_id: '',
-                    type: 'homework',
+                    task_type: 'homework',
                     due_date: '',
                     max_score: 100,
                     instructions: ''
@@ -156,8 +156,8 @@ const TeacherTasksPage = ({ user, courses, tasks }) => {
                                             {courses.map(course => {
                                                 const statusText = course.is_launched ? 'مُطلقة' : 
                                                                  course.is_published ? 'منشورة' : 'مسودة';
-                                                const enrollmentText = course.current_enrollment ? 
-                                                    ` (${course.current_enrollment}/${course.max_enrollment} طالب)` : '';
+                                                const enrollmentText = course.student_count ? 
+                                                    ` (${course.student_count}/${course.max_enrollment} طالب)` : '';
                                                 
                                                 return (
                                                     <option key={course.id} value={course.id}>
@@ -169,11 +169,11 @@ const TeacherTasksPage = ({ user, courses, tasks }) => {
                                     </div>
 
                                     <div className="form-group">
-                                        <label htmlFor="type">نوع المهمة *</label>
+                                        <label htmlFor="task_type">نوع المهمة *</label>
                                         <select
-                                            id="type"
-                                            name="type"
-                                            value={taskForm.type}
+                                            id="task_type"
+                                            name="task_type"
+                                            value={taskForm.task_type}
                                             onChange={handleChange}
                                             required
                                         >
@@ -254,7 +254,7 @@ const TeacherTasksPage = ({ user, courses, tasks }) => {
                                                     className="task-type"
                                                     style={{ backgroundColor: getTaskStatusColor(task.due_date) }}
                                                 >
-                                                    {taskTypes[task.type]}
+                                                    {taskTypes[task.task_type]}
                                                 </span>
                                             </div>
                                             <p className="task-description">{task.description}</p>
@@ -629,27 +629,27 @@ export const getServerSideProps = withAuth(async (context) => {
         // Get teacher's courses - include all published and launched courses
         const coursesResult = await pool.query(`
             SELECT 
-                id, 
-                name,
-                status,
-                is_published,
-                is_launched,
-                current_enrollment,
-                max_enrollment
-            FROM courses 
-            WHERE (created_by = $1 OR teacher_id = $1)
+                c.id, 
+                c.name,
+                c.status,
+                c.is_published,
+                c.is_launched,
+                c.max_enrollment,
+                (SELECT COUNT(*) FROM public.enrollments e WHERE e.course_id = c.id AND e.status = 'active') as student_count
+            FROM courses c
+            WHERE (c.created_by = $1 OR c.teacher_id = $1)
             AND (
-                is_published = true 
-                OR is_launched = true 
-                OR status IN ('active', 'published', 'launched')
+                c.is_published = true 
+                OR c.is_launched = true 
+                OR c.status IN ('active', 'published', 'launched')
             )
             ORDER BY 
                 CASE 
-                    WHEN is_launched = true THEN 1
-                    WHEN is_published = true THEN 2
+                    WHEN c.is_launched = true THEN 1
+                    WHEN c.is_published = true THEN 2
                     ELSE 3
                 END,
-                name ASC
+                c.name ASC
         `, [user.id]);
 
         // Get teacher's tasks with submission counts
@@ -657,10 +657,10 @@ export const getServerSideProps = withAuth(async (context) => {
             SELECT 
                 t.*,
                 c.name as course_name,
-                COUNT(ts.id) as submission_count
+                COUNT(s.id) as submission_count
             FROM tasks t
             LEFT JOIN courses c ON c.id = t.course_id
-            LEFT JOIN task_submissions ts ON t.id = ts.task_id
+            LEFT JOIN submissions s ON t.id = s.task_id
             WHERE t.created_by = $1
             GROUP BY t.id, c.name
             ORDER BY t.created_at DESC

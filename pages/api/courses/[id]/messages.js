@@ -65,26 +65,25 @@ export default async function handler(req, res) {
                 [newMessage.rows[0].id]
             );
 
-            // Notify other course participants (except the sender)
-            const participants = await pool.query(`
-                SELECT DISTINCT e.user_id 
-                FROM enrollments e 
-                WHERE e.course_id = $1 AND e.status = 'active' AND e.user_id != $2`,
-                [id, decoded.id]
-            );
-
-            for (const participant of participants.rows) {
-                await pool.query(`
-                    INSERT INTO notifications (user_id, type, message, related_id)
-                    VALUES ($1, $2, $3, $4)`,
-                    [
-                        participant.user_id,
-                        'course_message',
-                        `رسالة جديدة من ${messageWithAuthor.rows[0].author_name}`,
-                        id
-                    ]
-                );
-            }
+            // Notify other course participants (except the sender) using a single bulk insert
+            await pool.query(`
+                INSERT INTO notifications (user_id, type, message, link, related_id)
+                SELECT 
+                    e.user_id, 
+                    'course_message' AS type,
+                    $1 AS message,
+                    $2 AS link,
+                    $3 AS related_id
+                FROM enrollments e
+                WHERE e.course_id = $3 
+                  AND e.status = 'active' 
+                  AND e.user_id != $4
+            `, [
+                `رسالة جديدة في الدورة من ${messageWithAuthor.rows[0].author_name}`,
+                `/courses/${id}/messages`,
+                id,
+                decoded.id
+            ]);
 
             res.status(201).json(messageWithAuthor.rows[0]);
 

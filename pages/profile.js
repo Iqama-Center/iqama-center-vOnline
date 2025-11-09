@@ -5,9 +5,8 @@ import { withAuth } from '../lib/withAuth';
 import { useRouter } from 'next/router';
 import pool from '../lib/db';
 import { safeSerialize } from '../lib/isrUtils';
-import PerformanceDisplay from '../components/PerformanceDisplay'; // Import the new component
+import PerformanceDisplay from '../components/PerformanceDisplay';
 
-// ... (Keep the EditRequestModal component as is)
 const EditRequestModal = ({ isOpen, onClose, fieldName, currentValue, onSubmit }) => {
     const [newValue, setNewValue] = useState(currentValue || '');
     const [message, setMessage] = useState({ text: '', type: '' });
@@ -83,6 +82,34 @@ const EditRequestModal = ({ isOpen, onClose, fieldName, currentValue, onSubmit }
     );
 };
 
+const UserDetailsDisplay = ({ details }) => {
+    const arabicLabels = {
+        country: 'الدولة',
+        city: 'المدينة',
+        date_of_birth: 'تاريخ الميلاد',
+        gender: 'الجنس',
+        education_level: 'المستوى التعليمي',
+        specialization: 'التخصص',
+        interests: 'الاهتمامات',
+        preferred_language: 'اللغة المفضلة',
+    };
+
+    if (!details || Object.keys(details).length === 0) {
+        return <p className="no-details">لا توجد تفاصيل إضافية.</p>;
+    }
+
+    return (
+        <div className="details-display">
+            {Object.entries(details).map(([key, value]) => (
+                <div key={key} className="detail-item">
+                    <span className="detail-label">{arabicLabels[key] || key}:</span>
+                    <span className="detail-value">{value?.toString() || '-'}</span>
+                </div>
+            ))}
+        </div>
+    );
+};
+
 const ProfilePage = ({ user, performanceData }) => {
     const [passwordData, setPasswordData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
     const [passwordMessage, setPasswordMessage] = useState({ text: '', type: '' });
@@ -92,7 +119,6 @@ const ProfilePage = ({ user, performanceData }) => {
     const [editField, setEditField] = useState({ name: '', value: '' });
     const router = useRouter();
 
-    // ... (Keep all the handler functions: handlePasswordChange, handlePasswordBlur, handlePasswordSubmit, handleAvatarUpload, openEditModal, handleRequestSubmit)
     const handlePasswordChange = (e) => {
         const { name, value } = e.target;
         setPasswordData({ ...passwordData, [name]: value });
@@ -246,18 +272,61 @@ const ProfilePage = ({ user, performanceData }) => {
                 <div className="main-content">
                     <div className="profile-card">
                         <h3><i className="fas fa-id-card fa-fw"></i> معلومات أساسية</h3>
-                        {/* ... (info-row divs remain the same) ... */}
+                        <div className="info-row">
+                            <strong>الاسم الكامل</strong>
+                            <span>{user.full_name} <button className="edit-btn" onClick={() => openEditModal('full_name', user.full_name)}>✏️</button></span>
+                        </div>
+                        <div className="info-row">
+                            <strong>البريد الإلكتروني</strong>
+                            <span>{user.email} <button className="edit-btn" onClick={() => openEditModal('email', user.email)}>✏️</button></span>
+                        </div>
+                        <div className="info-row">
+                            <strong>رقم الهاتف</strong>
+                            <span>{user.phone} <button className="edit-btn" onClick={() => openEditModal('phone', user.phone)}>✏️</button></span>
+                        </div>
+                        <div className="info-row">
+                            <strong>الدور</strong>
+                            <span>{user.role}</span>
+                        </div>
                     </div>
 
-                    {performanceData && (
+                    <div className="profile-card">
+                        <h3><i className="fas fa-info-circle fa-fw"></i> تفاصيل إضافية</h3>
+                        <UserDetailsDisplay details={user.details} />
+                        <button className="edit-btn" style={{position: 'absolute', top: '25px', left: '25px'}} onClick={() => openEditModal('details', user.details)}>✏️</button>
+                    </div>
+
+                    {performanceData && performanceData.length > 0 && (
                         <div className="profile-card">
-                            <PerformanceDisplay performanceData={performanceData} />
+                           <h3><i className="fas fa-chart-pie fa-fw"></i> ملخص الأداء</h3>
+                           {performanceData.map(p => (
+                               <div key={p.course_id}>
+                                   <h4>أداؤك في دورة: {p.course_name}</h4>
+                                   <PerformanceDisplay performanceData={p} />
+                               </div>
+                           ))}
                         </div>
                     )}
 
                     <div className="profile-card">
                         <h3><i className="fas fa-key fa-fw"></i> تغيير كلمة المرور</h3>
-                        {/* ... (password change form remains the same) ... */}
+                        {passwordMessage.text && <div className={`message ${passwordMessage.type}`}>{passwordMessage.text}</div>}
+                        <form onSubmit={handlePasswordSubmit}>
+                           <div className="form-group">
+                                <label htmlFor="currentPassword">كلمة المرور الحالية</label>
+                                <input type="password" id="currentPassword" name="currentPassword" onChange={handlePasswordChange} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="newPassword">كلمة المرور الجديدة</label>
+                                <input type="password" id="newPassword" name="newPassword" onChange={handlePasswordChange} onBlur={handlePasswordBlur} required />
+                            </div>
+                            <div className="form-group">
+                                <label htmlFor="confirmPassword">تأكيد كلمة المرور الجديدة</label>
+                                <input type="password" id="confirmPassword" name="confirmPassword" onChange={handlePasswordChange} onBlur={handlePasswordBlur} required />
+                                {passwordErrors.confirmPassword && <span style={{color: 'red', fontSize: '12px'}}>{passwordErrors.confirmPassword}</span>}
+                            </div>
+                            <button type="submit" className="btn-save">حفظ كلمة المرور</button>
+                        </form>
                     </div>
                 </div>
             </div>
@@ -277,28 +346,39 @@ export default ProfilePage;
 
 export const getServerSideProps = withAuth(async (context) => {
     const { user } = context;
-    let performanceData = null;
+    let performanceData = []; // Always return an array
 
     try {
-        // We only fetch performance data for students for now
         if (user.role === 'student') {
-            // Assuming the student is enrolled in only one active course for simplicity
-            const enrollmentRes = await pool.query(
-                'SELECT course_id FROM enrollments WHERE user_id = $1 AND status = \'active\' LIMIT 1',
+            const enrollmentsRes = await pool.query(
+                `SELECT course_id, c.name as course_name 
+                 FROM enrollments e
+                 JOIN courses c ON e.course_id = c.id
+                 WHERE e.user_id = $1 AND e.status = 'active'`,
                 [user.id]
             );
 
-            if (enrollmentRes.rows.length > 0) {
-                const courseId = enrollmentRes.rows[0].course_id;
-                const performanceResult = await pool.query(
-                    'SELECT calculate_user_performance($1, $2) as performance_data',
-                    [user.id, courseId]
+            if (enrollmentsRes.rows.length > 0) {
+                performanceData = await Promise.all(
+                    enrollmentsRes.rows.map(async (enrollment) => {
+                        const performanceResult = await pool.query(
+                            'SELECT calculate_user_performance($1, $2) as performance_data',
+                            [user.id, enrollment.course_id]
+                        );
+                        const perfData = performanceResult.rows[0]?.performance_data || {};
+                        return {
+                            course_id: enrollment.course_id,
+                            course_name: enrollment.course_name,
+                            ...perfData,
+                        };
+                    })
                 );
-                performanceData = performanceResult.rows[0]?.performance_data || null;
             }
         }
     } catch (error) {
         console.error('Error fetching profile performance data:', error);
+        // Set performanceData to empty array on error, but don't crash the page
+        performanceData = [];
     }
 
     return {

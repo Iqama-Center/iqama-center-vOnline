@@ -42,12 +42,12 @@ export default async function handler(req, res) {
             birth_date,
             nationality,
             country: country === 'أخرى' ? otherCountryName : country,
-            preferredLanguage,
+            preferred_language: preferredLanguage,
             languages: typeof languages === 'string' ? languages.split(',').map(s => s.trim()) : languages,
-            parentContactOptional,
-            fatherPerspective,
-            motherPerspective,
-            workerSpecializations: workerSpecializations || []
+            parent_contact_optional: parentContactOptional,
+            father_perspective: fatherPerspective,
+            mother_perspective: motherPerspective,
+            worker_specializations: workerSpecializations || []
         };
 
         // Update user information

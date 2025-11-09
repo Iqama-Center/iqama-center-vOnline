@@ -1,9 +1,11 @@
 import React from 'react';
 import Layout from '../components/Layout';
+import pool from '../lib/db'; // Import the database pool
+import { safeSerialize } from '../lib/isrUtils'; // To safely serialize dates
 
 /**
  * Simplified Courses Page - Build-Safe Version
- * This version uses only static data to ensure fast build times
+ * This version now uses static data fetched at build time
  */
 const ImprovedCoursesPage = ({ 
     publicCourses = [], 
@@ -55,45 +57,69 @@ const ImprovedCoursesPage = ({
 };
 
 /**
- * Static Site Generation with immediate return
- * No database connections, no complex logic - just static data
+ * Static Site Generation with data from the database
  */
 export async function getStaticProps() {
-    console.log('Building courses-improved with static data');
+    console.log('Building courses-improved with data from database...');
     
-    return {
-        props: {
-            publicCourses: [
-                {
-                    id: 1,
-                    name: "دورة تعليم القرآن الكريم",
-                    description: "دورة شاملة لتعليم القرآن الكريم والتجويد",
-                    details: { category: "تعليم ديني" },
-                    enrolled_count: 25,
-                    course_fee: 300,
-                    duration_days: 30,
-                    teacher_name: "الأستاذ محمد أحمد"
-                },
-                {
-                    id: 2,
-                    name: "دورة اللغة العربية",
-                    description: "تعلم اللغة العربية من الأساسيات",
-                    details: { category: "لغات" },
-                    enrolled_count: 18,
-                    course_fee: 250,
-                    duration_days: 45,
-                    teacher_name: "الأستاذة فاطمة علي"
-                }
-            ],
-            courseStats: {
-                totalCourses: 25,
-                totalStudents: 150,
-                activeCourses: 20
+    try {
+        const client = await pool.connect();
+
+        // Fetch public courses with teacher name and enrollment count
+        const coursesRes = await client.query(`
+            SELECT 
+                c.id,
+                c.name,
+                c.description,
+                c.course_fee,
+                c.duration_days,
+                u.full_name as teacher_name,
+                COUNT(e.id) as enrolled_count
+            FROM courses c
+            LEFT JOIN users u ON c.teacher_id = u.id
+            LEFT JOIN enrollments e ON c.id = e.course_id
+            WHERE c.is_public = true AND c.is_published = true
+            GROUP BY c.id, u.full_name
+            ORDER BY c.created_at DESC;
+        `);
+
+        // Fetch overall stats
+        const statsRes = await client.query(`
+            SELECT
+                (SELECT COUNT(*) FROM courses WHERE is_published = true) as active_courses,
+                (SELECT COUNT(*) FROM courses) as total_courses,
+                (SELECT COUNT(*) FROM users WHERE role = 'student') as total_students;
+        `);
+        
+        client.release();
+
+        const courseStats = {
+            totalCourses: statsRes.rows[0].total_courses,
+            totalStudents: statsRes.rows[0].total_students,
+            activeCourses: statsRes.rows[0].active_courses,
+        };
+
+        return {
+            props: {
+                publicCourses: safeSerialize(coursesRes.rows),
+                courseStats: safeSerialize(courseStats),
+                lastUpdated: new Date().toISOString()
             },
-            lastUpdated: new Date().toISOString()
-        },
-        revalidate: 300
-    };
+            revalidate: 300 // Re-generate the page every 5 minutes
+        };
+
+    } catch (error) {
+        console.error('Failed to get static props for courses-improved:', error);
+        // Return empty data on error to prevent build failure
+        return {
+            props: {
+                publicCourses: [],
+                courseStats: {},
+                lastUpdated: new Date().toISOString()
+            },
+            revalidate: 60 // Try again after a minute
+        };
+    }
 }
 
 export default ImprovedCoursesPage;

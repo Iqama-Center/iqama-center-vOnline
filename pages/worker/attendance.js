@@ -8,52 +8,21 @@ const WorkerAttendancePage = ({ user }) => {
     const [todayStatus, setTodayStatus] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        loadAttendanceData();
-        checkTodayStatus();
-    }, [currentMonth, loadAttendanceData, checkTodayStatus]);
-
-    const generateMockAttendance = useCallback(() => {
-        const data = [];
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        
-        for (let day = 1; day <= daysInMonth; day++) {
-            const date = new Date(year, month, day);
-            const dateStr = date.toISOString().split('T')[0];
-            
-            // Skip weekends for work days
-            if (date.getDay() !== 0 && date.getDay() !== 6) {
-                data.push({
-                    date: dateStr,
-                    status: Math.random() > 0.1 ? 'present' : (Math.random() > 0.5 ? 'late' : 'absent'),
-                    checkIn: Math.random() > 0.1 ? '08:' + String(Math.floor(Math.random() * 60)).padStart(2, '0') : null,
-                    checkOut: Math.random() > 0.1 ? '17:' + String(Math.floor(Math.random() * 60)).padStart(2, '0') : null,
-                    notes: Math.random() > 0.8 ? 'ملاحظة تجريبية' : null
-                });
-            }
-        }
-        return data;
-    }, [currentMonth]);
-
     const loadAttendanceData = useCallback(async () => {
+        setLoading(true);
         try {
-            // Try to load real attendance data from API
-            try {
-                const response = await fetch(`/api/worker/attendance?month=${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setAttendanceData(data);
-                } else {
-                    setAttendanceData([]);
-                }
-            } catch (error) {
-                console.error('Failed to load attendance data:', error);
+            const monthString = `${currentMonth.getFullYear()}-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
+            const response = await fetch(`/api/worker/attendance?month=${monthString}`);
+            if (response.ok) {
+                const data = await response.json();
+                setAttendanceData(data);
+            } else {
+                console.error('Failed to load attendance data');
                 setAttendanceData([]);
             }
         } catch (error) {
             console.error('Error loading attendance:', error);
+            setAttendanceData([]);
         } finally {
             setLoading(false);
         }
@@ -61,50 +30,68 @@ const WorkerAttendancePage = ({ user }) => {
 
     const checkTodayStatus = useCallback(() => {
         const today = new Date().toISOString().split('T')[0];
-        const todayRecord = attendanceData.find(record => record.date === today);
-        setTodayStatus(todayRecord);
+        const todayRecord = attendanceData.find(record => record.date.startsWith(today));
+        setTodayStatus(todayRecord || null);
     }, [attendanceData]);
 
+    useEffect(() => {
+        loadAttendanceData();
+    }, [currentMonth, loadAttendanceData]);
+
+    useEffect(() => {
+        checkTodayStatus();
+    }, [attendanceData, checkTodayStatus]);
+
+    const handleApiResponse = (record) => {
+        setTodayStatus(record);
+        // Update the main attendance list with the new/updated record
+        setAttendanceData(prev => {
+            const index = prev.findIndex(r => r.id === record.id);
+            if (index > -1) {
+                const updated = [...prev];
+                updated[index] = record;
+                return updated;
+            } else {
+                return [...prev, record];
+            }
+        });
+    };
 
     const checkIn = async () => {
         try {
-            const now = new Date();
-            const newRecord = {
-                id: Date.now(),
-                date: now.toISOString().split('T')[0],
-                check_in_time: now.toISOString(),
-                status: now.getHours() > 9 ? 'late' : 'present',
-                location: 'المكتب الرئيسي'
-            };
-            
-            setTodayStatus(newRecord);
-            // Update attendance data
-            setAttendanceData(prev => {
-                const filtered = prev.filter(record => record.date !== newRecord.date);
-                return [...filtered, newRecord];
+            const response = await fetch('/api/worker/attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'check_in' }),
             });
+            const result = await response.json();
+            if (response.ok) {
+                handleApiResponse(result);
+            } else {
+                alert(`Error: ${result.message}`);
+            }
         } catch (error) {
             console.error('Error checking in:', error);
+            alert('An error occurred while checking in.');
         }
     };
 
     const checkOut = async () => {
         try {
-            const now = new Date();
-            const updatedRecord = {
-                ...todayStatus,
-                check_out_time: now.toISOString(),
-                total_hours: ((now - new Date(todayStatus.check_in_time)) / (1000 * 60 * 60)).toFixed(2)
-            };
-            
-            setTodayStatus(updatedRecord);
-            setAttendanceData(prev => 
-                prev.map(record => 
-                    record.date === updatedRecord.date ? updatedRecord : record
-                )
-            );
+            const response = await fetch('/api/worker/attendance', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'check_out' }),
+            });
+            const result = await response.json();
+            if (response.ok) {
+                handleApiResponse(result);
+            } else {
+                alert(`Error: ${result.message}`);
+            }
         } catch (error) {
             console.error('Error checking out:', error);
+            alert('An error occurred while checking out.');
         }
     };
 

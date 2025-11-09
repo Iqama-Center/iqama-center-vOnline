@@ -29,63 +29,82 @@ export default async function handler(req, res) {
             title,
             description,
             course_id,
-            type,
+            task_type, // Renamed from type
             due_date,
             max_score,
             instructions
         } = req.body;
 
         // Validate required fields
-        if (!title || !description || !course_id || !type || !due_date) {
+        if (!title || !description || !course_id || !task_type || !due_date) {
             return res.status(400).json({ message: 'جميع الحقول المطلوبة يجب ملؤها' });
         }
 
-        // Verify the teacher owns the course
-        const courseResult = await pool.query(
-            'SELECT id FROM courses WHERE id = $1 AND created_by = $2',
-            [course_id, userId]
-        );
+        const client = await pool.connect();
+        try {
+            await client.query('BEGIN');
 
-        if (courseResult.rows.length === 0) {
-            return res.status(403).json({ message: 'غير مصرح لك بإنشاء مهام في هذه الدورة' });
+            // Verify the teacher owns the course
+            const courseResult = await client.query(
+                'SELECT id FROM courses WHERE id = $1 AND (created_by = $2 OR teacher_id = $2)',
+                [course_id, userId]
+            );
+
+            if (courseResult.rows.length === 0) {
+                await client.query('ROLLBACK');
+                return res.status(403).json({ message: 'غير مصرح لك بإنشاء مهام في هذه الدورة' });
+            }
+
+            // Create the task
+            const taskResult = await client.query(`
+                INSERT INTO tasks (
+                    title, description, course_id, task_type, due_date, 
+                    max_score, instructions, created_by, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
+                RETURNING id
+            `, [title, description, course_id, task_type, due_date, max_score || 100, instructions, userId]);
+
+            const taskId = taskResult.rows[0].id;
+
+            // Get all students enrolled in the course
+            const studentsResult = await client.query(`
+                SELECT e.user_id 
+                FROM enrollments e 
+                WHERE e.course_id = $1 AND e.status = 'active'
+            `, [course_id]);
+
+            // Bulk create notifications for all enrolled students
+            if (studentsResult.rows.length > 0) {
+                const notificationValues = studentsResult.rows.map(student => 
+                    `(${student.user_id}, 'new_task', 'مهمة جديدة: ${title.replace(/'/g, "''")}', '/tasks/${taskId}')`
+                ).join(',');
+
+                await client.query(`
+                    INSERT INTO notifications (user_id, type, message, link)
+                    VALUES ${notificationValues}
+                `);
+            }
+
+            await client.query('COMMIT');
+
+            res.status(201).json({ 
+                message: 'تم إنشاء المهمة بنجاح',
+                taskId: taskId
+            });
+
+        } catch (err) {
+            await client.query('ROLLBACK');
+            console.error('Task creation error:', err);
+            res.status(500).json({ message: 'حدث خطأ في الخادم' });
+        } finally {
+            client.release();
         }
-
-        // Create the task
-        const taskResult = await pool.query(`
-            INSERT INTO tasks (
-                title, description, course_id, type, due_date, 
-                max_score, instructions, created_by, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
-            RETURNING id
-        `, [title, description, course_id, type, due_date, max_score || 100, instructions, userId]);
-
-        const taskId = taskResult.rows[0].id;
-
-        // Get all students enrolled in the course
-        const studentsResult = await pool.query(`
-            SELECT e.user_id 
-            FROM enrollments e 
-            WHERE e.course_id = $1 AND e.status = 'active'
-        `, [course_id]);
-
-        // Create notifications for all enrolled students
-        for (const student of studentsResult.rows) {
-            await pool.query(`
-                INSERT INTO notifications (user_id, type, message, link, created_at)
-                VALUES ($1, 'new_task', $2, $3, CURRENT_TIMESTAMP)
-            `, [
-                student.user_id,
-                `مهمة جديدة: ${title}`,
-                `/tasks/${taskId}`
-            ]);
-        }
-
-        res.status(201).json({ 
-            message: 'تم إنشاء المهمة بنجاح',
-            taskId: taskId
-        });
     } catch (err) {
-        console.error('Task creation error:', err);
+        // Handle JWT errors separately
+        if (err.name === 'JsonWebTokenError') {
+            return res.status(401).json({ message: 'Invalid token' });
+        }
+        console.error('Task creation API error:', err);
         res.status(500).json({ message: 'حدث خطأ في الخادم' });
     }
 }

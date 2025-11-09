@@ -8,9 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "start:scheduler": "node scripts/start-internal-scheduler.js && node scripts/start-assignments-scheduler.js",
-    "test:assignments": "node scripts/test_assignments.js",
-    "test": "npm run test:assignments"
+    "start:internal-scheduler": "node scripts/start-internal-scheduler.js",
+    "start:assignments-scheduler": "node scripts/start-assignments-scheduler.js",
+    "test": "node scripts/test_assignments.js"
   },
   "keywords": [],
   "author": "",

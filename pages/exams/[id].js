@@ -49,6 +49,7 @@ const ExamPage = ({ user, exam, course }) => {
     };
 
     const handleSubmit = useCallback(async () => {
+        if (submitted) return; // Prevent double submission
         if (!window.confirm('هل أنت متأكد من إرسال إجاباتك؟ لن تتمكن من التعديل بعد الإرسال.')) {
             return;
         }
@@ -76,7 +77,7 @@ const ExamPage = ({ user, exam, course }) => {
         } finally {
             setLoading(false);
         }
-    }, [exam, answers]);
+    }, [exam, answers, submitted]);
 
     if (!exam) {
         return (
@@ -104,6 +105,8 @@ const ExamPage = ({ user, exam, course }) => {
     }
 
     // Check if user has exceeded max attempts
+    // This logic is now handled on the server-side in the /api/exams/take endpoint
+    /*
     if (attempts >= exam.max_attempts) {
         return (
             <Layout user={user}>
@@ -115,6 +118,7 @@ const ExamPage = ({ user, exam, course }) => {
             </Layout>
         );
     }
+    */
 
     if (submitted) {
         return (
@@ -122,7 +126,7 @@ const ExamPage = ({ user, exam, course }) => {
                 <div style={{ textAlign: 'center', padding: '50px' }}>
                     <h2>تم إرسال إجاباتك بنجاح</h2>
                     <p>شكراً لك على أداء الامتحان</p>
-                    <button onClick={() => router.push(`/courses/${course.id}`)}>العودة للدورة</button>
+                    <button onClick={() => router.push(`/courses/${course?.id || ''}`)}>العودة للدورة</button>
                 </div>
             </Layout>
         );
@@ -209,7 +213,7 @@ const ExamPage = ({ user, exam, course }) => {
             <div className="exam-header">
                 <div>
                     <h1>{exam.title}</h1>
-                    <p>الدورة: {course.name}</p>
+                    <p>الدورة: {course?.name || 'غير محدد'}</p>
                 </div>
                 {timeRemaining !== null && (
                     <div className="timer">
@@ -221,10 +225,10 @@ const ExamPage = ({ user, exam, course }) => {
             {exam.questions && exam.questions.map((question, index) => (
                 <div key={question.id || index} className="question-card">
                     <div className="question-title">
-                        السؤال {index + 1}: {question.question}
+                        السؤال {index + 1}: {question.question_text}
                     </div>
                     
-                    {question.type === 'multiple_choice' && (
+                    {question.question_type === 'multiple_choice' && (
                         <div>
                             {question.options.map((option, optionIndex) => (
                                 <div
@@ -238,7 +242,7 @@ const ExamPage = ({ user, exam, course }) => {
                         </div>
                     )}
                     
-                    {question.type === 'true_false' && (
+                    {question.question_type === 'true_false' && (
                         <div>
                             <div
                                 className={`option ${answers[question.id] === 'true' ? 'selected' : ''}`}
@@ -255,10 +259,10 @@ const ExamPage = ({ user, exam, course }) => {
                         </div>
                     )}
                     
-                    {(question.type === 'short_answer' || question.type === 'essay') && (
+                    {(question.question_type === 'short_answer' || question.question_type === 'essay') && (
                         <textarea
                             className="answer-input"
-                            rows={question.type === 'essay' ? 6 : 3}
+                            rows={question.question_type === 'essay' ? 6 : 3}
                             placeholder="اكتب إجابتك هنا..."
                             value={answers[question.id] || ''}
                             onChange={(e) => handleAnswerChange(question.id, e.target.value)}
@@ -291,8 +295,13 @@ export const getServerSideProps = withAuth(async (context) => {
     const { id } = context.params;
 
     try {
-        // Get exam details
-        const examRes = await pool.query('SELECT * FROM exams WHERE id = $1', [id]);
+        // Get exam details with questions
+        const examRes = await pool.query(`
+            SELECT e.*, 
+                   (SELECT jsonb_agg(eq.*) FROM exam_questions eq WHERE eq.exam_id = e.id) as questions
+            FROM exams e 
+            WHERE e.id = $1
+        `, [id]);
         if (examRes.rows.length === 0) {
             return { notFound: true };
         }
@@ -300,17 +309,21 @@ export const getServerSideProps = withAuth(async (context) => {
         const exam = examRes.rows[0];
 
         // Get course details
-        const courseRes = await pool.query('SELECT * FROM courses WHERE id = $1', [exam.course_id]);
+        const courseRes = await pool.query('SELECT id, name FROM courses WHERE id = $1', [exam.course_id]);
         
-        // Parse questions if they exist
+        // No need to parse questions anymore as they are aggregated in the query
+        /*
         if (exam.questions) {
             try {
-                exam.questions = JSON.parse(exam.questions);
+                // This is a JSONB field in the database, so it should already be an object.
+                // No need to parse if the database driver handles it correctly.
+                // exam.questions = JSON.parse(exam.questions);
             } catch (error) {
                 console.error('Error parsing exam questions:', error);
                 exam.questions = [];
             }
         }
+        */
 
         return {
             props: {

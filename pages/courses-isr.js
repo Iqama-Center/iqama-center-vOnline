@@ -56,7 +56,18 @@ const CoursesISR = ({
 
         // Apply status filter
         if (selectedStatus) {
-            filtered = filtered.filter(course => course.status === selectedStatus);
+            filtered = filtered.filter(course => {
+                if (selectedStatus === 'available') {
+                    return course.student_count < course.max_enrollment;
+                }
+                if (selectedStatus === 'full') {
+                    return course.student_count >= course.max_enrollment;
+                }
+                if (selectedStatus === 'active') {
+                    return course.is_launched;
+                }
+                return true;
+            });
         }
 
         // Apply sorting
@@ -141,16 +152,20 @@ const CoursesISR = ({
                             ))}
                         </select>
 
-                        <select
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
-                            className="filter-select"
-                        >
-                            <option value="">جميع الحالات</option>
-                            <option value="active">نشط</option>
-                            <option value="published">منشور</option>
-                        </select>
-
+                        <div className="filter-group">
+                            <label htmlFor="status-filter">الحالة</label>
+                            <select 
+                                id="status-filter"
+                                value={selectedStatus} 
+                                onChange={(e) => setSelectedStatus(e.target.value)}
+                            >
+                                <option value="">كل الحالات</option>
+                                <option value="available">متاح للتسجيل</option>
+                                <option value="full">مكتمل</option>
+                                <option value="active">نشط حالياً</option>
+                            </select>
+                        </div>
+                        
                         <select
                             value={sortBy}
                             onChange={(e) => setSortBy(e.target.value)}
@@ -233,65 +248,35 @@ const CoursesISR = ({
                                     </div>
                                 </div>
 
-                                <div className="course-footer">
-                                    <div className="course-meta">
-                                        <small>
-                                            تم الإنشاء: {new Date(course.created_at).toLocaleDateString('ar-EG')}
-                                        </small>
-                                        {course.details?.category && (
-                                            <small className="category-tag">
-                                                {course.details.category}
-                                            </small>
-                                        )}
-                                    </div>
-                                    
-                                    <div className="course-actions">
-                                        <button 
-                                            className="btn btn-primary"
-                                            disabled={course.is_full}
-                                            onClick={() => {
-                                                // Handle enrollment
-                                                window.location.href = `/courses/${course.id}`;
-                                            }}
-                                        >
-                                            {course.is_full ? 'مكتمل' : 'عرض التفاصيل'}
-                                        </button>
-                                    </div>
+                                <div className="course-card-footer">
+                                    <span className="course-price">{course.course_fee > 0 ? `${course.course_fee} ريال` : 'مجاني'}</span>
+                                    <a href={`/courses/${course.id}`} className="course-link">
+                                        التفاصيل <i className="fas fa-arrow-left"></i>
+                                    </a>
                                 </div>
                             </div>
                         ))
                     ) : (
-                        <div className="no-courses">
-                            <h3>لا توجد دورات تطابق البحث</h3>
-                            <p>جرب تغيير معايير البحث أو الفلترة</p>
-                            <button 
-                                className="btn btn-secondary"
-                                onClick={() => {
-                                    setSearchTerm('');
-                                    setSelectedCategory('');
-                                    setSelectedStatus('');
-                                    setSortBy('newest');
-                                }}
-                            >
-                                إعادة تعيين الفلاتر
-                            </button>
+                        <div className="no-courses-found">
+                            <i className="fas fa-search-minus"></i>
+                            <p>لم يتم العثور على دورات تطابق معايير البحث.</p>
                         </div>
                     )}
                 </section>
 
-                {/* Debug Information (development only) */}
-                {process.env.NODE_ENV === 'development' && metadata && (
-                    <section className="debug-section">
-                        <h3>معلومات التطوير</h3>
-                        <details>
-                            <summary>عرض البيانات التقنية</summary>
-                            <pre>{JSON.stringify(metadata, null, 2)}</pre>
-                        </details>
-                    </section>
-                )}
+                {/* Footer with metadata */}
+                <footer className="courses-footer">
+                    <p>
+                        آخر تحديث للصفحة: {new Date(lastUpdated).toLocaleString('ar-EG')}
+                    </p>
+                    <p>
+                        تم بناء هذه الصفحة باستخدام تقنية ISR (Incremental Static Regeneration) لتوفير أداء عالٍ.
+                    </p>
+                </footer>
             </div>
-
-            <style jsx>{`
+        </Layout>
+    );
+    <style jsx>{`
                 .courses-container {
                     max-width: 1200px;
                     margin: 0 auto;
@@ -299,64 +284,57 @@ const CoursesISR = ({
                     font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                 }
 
+                /* --- Header & Stats Section --- */
                 .courses-header {
                     text-align: center;
                     margin-bottom: 40px;
                     padding: 40px 20px;
-                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    background: linear-gradient(135deg, var(--primary-color, #667eea) 0%, var(--primary-dark-color, #764ba2) 100%);
                     color: white;
                     border-radius: 12px;
                 }
-
                 .courses-header h1 {
                     font-size: 2.5rem;
                     margin-bottom: 10px;
                     font-weight: 700;
                 }
-
                 .courses-header p {
                     font-size: 1.2rem;
                     margin-bottom: 30px;
                     opacity: 0.9;
                 }
-
                 .stats-summary {
                     display: flex;
                     justify-content: center;
                     gap: 40px;
                     flex-wrap: wrap;
                 }
-
                 .stat-item {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
                 }
-
                 .stat-number {
                     font-size: 2rem;
                     font-weight: 700;
-                    display: block;
                 }
-
                 .stat-label {
                     font-size: 0.9rem;
                     opacity: 0.8;
                 }
 
+                /* --- Filters Section --- */
                 .filters-section {
                     background: white;
                     padding: 30px;
                     border-radius: 12px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                    box-shadow: var(--shadow-md);
                     margin-bottom: 30px;
                     border: 1px solid #e1e5e9;
                 }
-
                 .search-bar {
                     margin-bottom: 20px;
                 }
-
                 .search-input {
                     width: 100%;
                     padding: 12px 20px;
@@ -365,20 +343,18 @@ const CoursesISR = ({
                     font-size: 1rem;
                     transition: border-color 0.3s ease;
                 }
-
                 .search-input:focus {
                     outline: none;
-                    border-color: #667eea;
+                    border-color: var(--primary-color, #667eea);
                 }
-
                 .filters-row {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                     gap: 15px;
                     margin-bottom: 20px;
                 }
-
-                .filter-select {
+                .filter-select, .filter-group select {
+                    width: 100%;
                     padding: 10px 15px;
                     border: 2px solid #e1e5e9;
                     border-radius: 8px;
@@ -387,12 +363,16 @@ const CoursesISR = ({
                     cursor: pointer;
                     transition: border-color 0.3s ease;
                 }
-
-                .filter-select:focus {
+                .filter-select:focus, .filter-group select:focus {
                     outline: none;
-                    border-color: #667eea;
+                    border-color: var(--primary-color, #667eea);
                 }
-
+                .filter-group label {
+                    display: block;
+                    font-size: 0.8rem;
+                    margin-bottom: 5px;
+                    color: var(--gray-600);
+                }
                 .results-info {
                     display: flex;
                     justify-content: space-between;
@@ -401,482 +381,231 @@ const CoursesISR = ({
                     font-size: 0.9rem;
                 }
 
+                /* --- Courses Grid & Cards --- */
                 .courses-grid {
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
                     gap: 30px;
                     margin-bottom: 40px;
                 }
-
                 .course-card {
                     background: white;
                     border-radius: 12px;
-                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                    box-shadow: var(--shadow-md);
                     overflow: hidden;
                     transition: transform 0.3s ease, box-shadow 0.3s ease;
                     border: 1px solid #e1e5e9;
+                    display: flex;
+                    flex-direction: column;
                 }
-
                 .course-card:hover {
                     transform: translateY(-5px);
-                    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+                    box-shadow: var(--shadow-xl);
                 }
-
                 .course-header {
-                    padding: 20px 20px 0;
+                    padding: 20px;
                     display: flex;
                     justify-content: space-between;
                     align-items: flex-start;
                     gap: 15px;
                 }
-
                 .course-header h3 {
                     margin: 0;
                     font-size: 1.3rem;
                     font-weight: 600;
                     color: #2c3e50;
-                    flex: 1;
                 }
-
                 .course-badges {
                     display: flex;
                     flex-direction: column;
                     gap: 5px;
+                    align-items: flex-end;
                 }
-
                 .status-badge {
-                    padding: 4px 8px;
+                    padding: 4px 10px;
                     border-radius: 12px;
-                    font-size: 0.7rem;
+                    font-size: 0.75rem;
                     font-weight: 500;
-                    text-align: center;
                     white-space: nowrap;
                 }
-
                 .status-badge.active {
-                    background: #d4edda;
-                    color: #155724;
+                    background: #d4edda; color: #155724;
                 }
-
                 .status-badge.published {
-                    background: #cce7ff;
-                    color: #004085;
+                    background: #cce7ff; color: #004085;
                 }
-
                 .status-badge.full {
-                    background: #f8d7da;
-                    color: #721c24;
+                    background: #f8d7da; color: #721c24;
                 }
-
                 .course-content {
-                    padding: 20px;
+                    padding: 0 20px 20px;
+                    flex-grow: 1;
                 }
-
                 .course-description {
                     color: #6c757d;
                     line-height: 1.6;
                     margin-bottom: 20px;
+                    font-size: 0.95rem;
                 }
-
                 .course-details {
                     margin-bottom: 20px;
                 }
-
                 .detail-row {
                     display: flex;
                     justify-content: space-between;
                     margin-bottom: 8px;
                     font-size: 0.9rem;
                 }
-
                 .detail-label {
                     font-weight: 600;
                     color: #495057;
                 }
-
                 .detail-value {
                     color: #6c757d;
                 }
-
                 .enrollment-progress {
                     margin-top: 15px;
                 }
-
                 .progress-bar {
-                    width: 100%;
-                    height: 8px;
-                    background: #e9ecef;
-                    border-radius: 4px;
-                    overflow: hidden;
-                    margin-bottom: 5px;
+                    width: 100%; height: 8px; background: #e9ecef;
+                    border-radius: 4px; overflow: hidden; margin-bottom: 5px;
                 }
-
                 .progress-fill {
                     height: 100%;
                     background: linear-gradient(90deg, #28a745, #20c997);
                     transition: width 0.3s ease;
                 }
-
                 .progress-text {
-                    font-size: 0.8rem;
-                    color: #6c757d;
+                    font-size: 0.8rem; color: #6c757d;
                 }
 
-                .course-footer {
-                    padding: 0 20px 20px;
-                }
-
-                .course-meta {
+                /* CORRECTED: Renamed and improved footer styles */
+                .course-card-footer {
+                    padding: 15px 20px;
+                    background: #f8f9fa;
+                    border-top: 1px solid #e1e5e9;
                     display: flex;
                     justify-content: space-between;
                     align-items: center;
-                    margin-bottom: 15px;
-                    font-size: 0.8rem;
-                    color: #6c757d;
                 }
-
-                .category-tag {
-                    background: #f8f9fa;
-                    padding: 2px 8px;
-                    border-radius: 12px;
-                    color: #495057;
+                
+                /* NEW: Styles for price and details link */
+                .course-price {
+                    font-size: 1.2rem;
+                    font-weight: 700;
+                    color: var(--primary-color, #667eea);
                 }
-
-                .course-actions {
-                    display: flex;
-                    gap: 10px;
-                }
-
-                .btn {
-                    padding: 10px 20px;
-                    border: none;
+                .course-link {
+                    background: var(--primary-color, #667eea);
+                    color: white;
+                    padding: 8px 16px;
                     border-radius: 6px;
-                    font-size: 0.9rem;
-                    font-weight: 500;
-                    cursor: pointer;
                     text-decoration: none;
-                    text-align: center;
-                    transition: all 0.3s ease;
-                    flex: 1;
+                    font-weight: 500;
+                    transition: background-color 0.3s ease;
+                }
+                .course-link:hover {
+                    background: var(--primary-dark-color, #5a67d8);
+                }
+                .course-link i {
+                    margin-right: 5px; /* In RTL, this is margin-left */
                 }
 
-                .btn:disabled {
-                    opacity: 0.6;
-                    cursor: not-allowed;
-                }
-
-                .btn-primary {
-                    background: #007bff;
-                    color: white;
-                }
-
-                .btn-primary:hover:not(:disabled) {
-                    background: #0056b3;
-                }
-
-                .btn-secondary {
-                    background: #6c757d;
-                    color: white;
-                }
-
-                .btn-secondary:hover {
-                    background: #545b62;
-                }
-
-                .no-courses {
+                /* CORRECTED: Renamed no-courses to no-courses-found */
+                .no-courses-found {
                     grid-column: 1 / -1;
                     text-align: center;
                     padding: 60px 20px;
                     color: #6c757d;
-                }
-
-                .no-courses h3 {
-                    margin-bottom: 10px;
-                    color: #495057;
-                }
-
-                .no-courses p {
-                    margin-bottom: 20px;
-                }
-
-                .debug-section {
-                    margin-top: 40px;
-                    padding: 20px;
                     background: #f8f9fa;
-                    border-radius: 8px;
-                    border: 1px solid #dee2e6;
+                    border-radius: 12px;
+                }
+                .no-courses-found i {
+                    font-size: 3rem;
+                    margin-bottom: 15px;
+                    color: #ced4da;
                 }
 
-                .debug-section h3 {
-                    margin-top: 0;
-                    color: #495057;
+                /* NEW: Styles for the page footer */
+                .courses-footer {
+                    text-align: center;
+                    margin-top: 40px;
+                    padding-top: 20px;
+                    border-top: 1px solid #e1e5e9;
+                    color: #6c757d;
+                    font-size: 0.9rem;
                 }
-
-                .debug-section pre {
-                    background: white;
-                    padding: 15px;
-                    border-radius: 4px;
-                    overflow-x: auto;
-                    font-size: 0.8rem;
-                    margin-top: 10px;
-                }
-
+                
+                /* --- Responsive Design --- */
                 @media (max-width: 768px) {
-                    .courses-grid {
-                        grid-template-columns: 1fr;
-                    }
-                    
-                    .stats-summary {
-                        gap: 20px;
-                    }
-                    
-                    .courses-header h1 {
-                        font-size: 2rem;
-                    }
-                    
-                    .filters-row {
-                        grid-template-columns: 1fr;
-                    }
-                    
-                    .results-info {
-                        flex-direction: column;
-                        gap: 10px;
-                        text-align: center;
-                    }
-                    
-                    .course-meta {
-                        flex-direction: column;
-                        gap: 5px;
-                        text-align: center;
-                    }
+                    .courses-grid { grid-template-columns: 1fr; }
+                    .stats-summary { gap: 20px; }
+                    .courses-header h1 { font-size: 2rem; }
+                    .filters-row { grid-template-columns: 1fr; }
+                    .results-info { flex-direction: column; gap: 10px; text-align: center; }
                 }
             `}</style>
-        </Layout>
-    );
+
 };
 
 /**
- * Enhanced Static Site Generation with ISR
- * Comprehensive implementation with error handling and performance optimization
+ * getStaticProps: Fetches data at build time and re-generates it periodically.
  */
 export async function getStaticProps() {
-    // Use static fallback data during build to avoid database connection issues
-    console.log('Using static fallback data for courses-isr build');
-    return {
-        props: {
-            courses: [
-                {
-                    id: 1,
-                    name: "دورة تعليم القرآن الكريم",
-                    description: "دورة شاملة لتعليم القرآن الكريم والتجويد",
-                    details: { category: "تعليم ديني" },
-                    enrolled_count: 25,
-                    course_fee: 300,
-                    duration_days: 30,
-                    teacher_name: "الأستاذ محمد أحمد",
-                    status: "active",
-                    created_at: new Date().toISOString(),
-                    current_enrollment: 25,
-                    availability_status: "available"
-                },
-                {
-                    id: 2,
-                    name: "دورة الفقه الإسلامي",
-                    description: "دراسة أحكام الفقه الإسلامي وتطبيقاتها العملية",
-                    details: { category: "علوم شرعية" },
-                    enrolled_count: 18,
-                    course_fee: 250,
-                    duration_days: 45,
-                    teacher_name: "الشيخ عبد الرحمن",
-                    status: "active",
-                    created_at: new Date().toISOString(),
-                    current_enrollment: 18,
-                    availability_status: "available"
-                }
-            ],
-            categories: [
-                { category: "تعليم ديني", course_count: 8 },
-                { category: "علوم شرعية", course_count: 6 },
-                { category: "تربية إسلامية", course_count: 4 }
-            ],
-            stats: {
-                totalCourses: 25,
-                activeCourses: 20,
-                totalStudents: 150,
-                completedEnrollments: 45,
-                totalTeachers: 12,
-                avgCourseFee: 275
-            },
-            lastUpdated: new Date().toISOString(),
-            metadata: {
-                totalFetched: 2,
-                queriesExecuted: 3,
-                coursesSuccess: true,
-                categoriesSuccess: true,
-                statsSuccess: true,
-                cacheStrategy: 'static_fallback',
-                generatedAt: new Date().toISOString(),
-                dataSource: 'static_fallback'
-            }
-        },
-        revalidate: 300
-    };
-}
+    console.log('Fetching data for courses-isr page...');
+    let client;
 
-// Original function (disabled during build)
-async function getStaticPropsOriginal() {
     try {
-        // Execute multiple queries in parallel for optimal performance
-        const [coursesResult, categoriesResult, statsResult] = await Promise.allSettled([
-            // Enhanced courses query with comprehensive data
-            pool.query(`
-                SELECT 
-                    c.id,
-                    c.name,
-                    c.description,
-                    c.details,
-                    c.status,
-                    c.created_at,
-                    c.course_fee,
-                    c.duration_days,
-                    c.max_participants,
-                    c.start_date,
-                    c.end_date,
-                    c.is_published,
-                    COUNT(e.id) as student_count,
-                    u.full_name as teacher_name,
-                    u.id as teacher_id
-                FROM courses c
-                LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
-                LEFT JOIN users u ON c.teacher_id = u.id
-                WHERE c.status IN ('active', 'published') AND c.teacher_id IS NOT NULL
-                GROUP BY c.id, c.name, c.description, c.details, c.status, c.created_at,
-                         c.course_fee, c.duration_days, c.max_participants, c.start_date,
-                         c.end_date, c.is_published, u.full_name, u.id
-                ORDER BY c.created_at DESC, student_count DESC
-                LIMIT 100
-            `),
-            
-            // Categories with enhanced data
-            pool.query(`
-                SELECT 
-                    COALESCE(details->>'category', 'عام') as name,
-                    COUNT(*) as count,
-                    AVG(course_fee) as avg_fee
-                FROM courses 
-                WHERE status IN ('active', 'published')
-                GROUP BY details->>'category'
-                ORDER BY count DESC
-                LIMIT 20
-            `),
-            
-            // Comprehensive statistics
-            pool.query(`
-                SELECT 
-                    (SELECT COUNT(*) FROM courses WHERE is_published = true) as total_courses,
-                    (SELECT COUNT(*) FROM courses WHERE is_published = true AND is_launched = true) as active_courses,
-                    (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_enrollments,
-                    (SELECT COUNT(*) FROM users WHERE role = 'teacher' AND (account_status = 'active' OR account_status IS NULL)) as total_teachers,
-                    (SELECT AVG(course_fee) FROM courses WHERE is_published = true AND course_fee > 0) as avg_course_fee
-            `)
-        ]);
+        client = await pool.connect();
 
-        // Process courses with enhanced data transformation
-        let courses = [];
-        if (coursesResult.status === 'fulfilled') {
-            courses = coursesResult.value.rows.map(course => {
-                const studentCount = parseInt(course.student_count || 0);
-                const maxParticipants = parseInt(course.max_participants || 0);
-                
-                return {
-                    ...course,
-                    details: typeof course.details === 'object' ? course.details : {},
-                    student_count: studentCount,
-                    course_fee: parseFloat(course.course_fee || 0),
-                    duration_days: parseInt(course.duration_days || 0),
-                    max_participants: maxParticipants,
-                    created_at: course.created_at ? new Date(course.created_at).toISOString() : null,
-                    start_date: course.start_date ? new Date(course.start_date).toISOString() : null,
-                    end_date: course.end_date ? new Date(course.end_date).toISOString() : null,
-                    is_full: maxParticipants > 0 && studentCount >= maxParticipants,
-                    enrollment_percentage: maxParticipants > 0 
-                        ? Math.round((studentCount / maxParticipants) * 100) 
-                        : 0
-                };
-            });
-        }
+        // Fetch public courses with teacher name and student count
+        const coursesQuery = `
+            SELECT 
+                c.id, c.name, c.description, c.course_fee, c.max_enrollment, c.is_launched,
+                c.created_at, c.details,
+                COALESCE(u.full_name, 'غير محدد') as teacher_name,
+                COUNT(e.id)::int as student_count
+            FROM courses c
+            LEFT JOIN users u ON c.teacher_id = u.id
+            LEFT JOIN enrollments e ON c.id = e.course_id
+            WHERE c.is_public = true AND c.is_published = true
+            GROUP BY c.id, u.full_name
+            ORDER BY c.created_at DESC;
+        `;
+        const coursesRes = await client.query(coursesQuery);
 
-        // Process categories
-        let categories = [];
-        if (categoriesResult.status === 'fulfilled') {
-            categories = categoriesResult.value.rows.map(cat => ({
-                name: cat.name || 'عام',
-                count: parseInt(cat.count || 0),
-                avgFee: parseFloat(cat.avg_fee || 0)
-            }));
-        }
+        // Fetch distinct categories from course details
+        const categoriesQuery = `
+            SELECT DISTINCT(details->>'category') as category 
+            FROM courses 
+            WHERE details->>'category' IS NOT NULL AND is_public = true;
+        `;
+        const categoriesRes = await client.query(categoriesQuery);
 
-        // Process statistics
-        let stats = {
-            totalCourses: 0,
-            activeCourses: 0,
-            totalStudents: 0,
-            completedEnrollments: 0,
-            totalTeachers: 0,
-            avgCourseFee: 0
-        };
-
-        if (statsResult.status === 'fulfilled') {
-            const statsRow = statsResult.value.rows[0] || {};
-            stats = {
-                totalCourses: parseInt(statsRow.total_courses || 0),
-                activeCourses: parseInt(statsRow.active_courses || 0),
-                totalStudents: parseInt(statsRow.total_students || 0),
-                completedEnrollments: parseInt(statsRow.completed_enrollments || 0),
-                totalTeachers: parseInt(statsRow.total_teachers || 0),
-                avgCourseFee: parseFloat(statsRow.avg_course_fee || 0)
-            };
-        }
+        // Fetch statistics
+        const statsQuery = `
+            SELECT
+                (SELECT COUNT(*)::int FROM courses WHERE is_public = true AND is_published = true) as total_courses,
+                (SELECT COUNT(*)::int FROM users WHERE role = 'student') as total_students,
+                (SELECT COUNT(*)::int FROM users WHERE role = 'teacher') as total_teachers;
+        `;
+        const statsRes = await client.query(statsQuery);
 
         return createSuccessResponse({
-            courses: safeSerialize(courses),
-            categories: safeSerialize(categories),
-            stats: safeSerialize(stats),
-            metadata: {
-                totalFetched: courses.length,
-                queriesExecuted: 3,
-                coursesSuccess: coursesResult.status === 'fulfilled',
-                categoriesSuccess: categoriesResult.status === 'fulfilled',
-                statsSuccess: statsResult.status === 'fulfilled',
-                cacheStrategy: 'ISR',
-                generatedAt: new Date().toISOString()
-            }
-        }, REVALIDATION_TIMES.FREQUENT);
+            courses: coursesRes.rows,
+            categories: categoriesRes.rows.map(r => r.category),
+            stats: statsRes.rows[0],
+        });
 
     } catch (error) {
-        console.error('Critical error in getStaticProps for courses:', error);
-        
-        return createErrorResponse({
-            courses: [],
-            categories: [],
-            stats: {
-                totalCourses: 0,
-                activeCourses: 0,
-                totalStudents: 0,
-                completedEnrollments: 0,
-                totalTeachers: 0,
-                avgCourseFee: 0
-            },
-            metadata: {
-                error: error.message,
-                generatedAt: new Date().toISOString()
-            }
-        }, REVALIDATION_TIMES.ERROR);
+        console.error('ISR Error in courses-isr:', error);
+        return createErrorResponse(error);
+
+    } finally {
+        if (client) client.release();
+        console.log('Finished fetching data for courses-isr.');
     }
 }
 
-// Note: This page uses ISR only (getStaticProps) for public access
-// For authenticated features, use courses.js instead
-
-export default CoursesISR;
+// Wrap the component with withAuth to get user info
+export default withAuth(CoursesISR);

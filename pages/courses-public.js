@@ -38,8 +38,8 @@ const PublicCoursesPage = ({ courses, stats, lastUpdated }) => {
                             <div key={course.id} className="course-card">
                                 <div className="course-header">
                                     <h3>{course.name}</h3>
-                                    <span className={`status-badge ${course.status}`}>
-                                        {course.status === 'active' ? 'متاحة للتسجيل' : 'قريباً'}
+                                    <span className={`status-badge ${course.student_count >= course.max_enrollment ? 'status-full' : 'status-available'}`}>
+                                        {course.student_count >= course.max_enrollment ? 'مكتمل' : 'متاح للتسجيل'}
                                     </span>
                                 </div>
                                 
@@ -53,15 +53,16 @@ const PublicCoursesPage = ({ courses, stats, lastUpdated }) => {
                                                 {Object.entries(course.details).map(([key, value]) => {
                                                     // Arabic translations for common fields
                                                     const arabicLabels = {
-                                                        'duration': 'المدة',
+                                                        'duration_days': 'المدة بالأيام',
                                                         'level': 'المستوى',
-                                                        'instructor': 'المدرب',
+                                                        'teacher_name': 'المدرس',
                                                         'location': 'المكان',
-                                                        'schedule': 'الجدول',
+                                                        'days_per_week': 'أيام الأسبوع',
+                                                        'hours_per_day': 'ساعات اليوم',
                                                         'requirements': 'المتطلبات',
                                                         'objectives': 'الأهداف',
-                                                        'price': 'السعر',
-                                                        'capacity': 'السعة',
+                                                        'course_fee': 'الرسوم',
+                                                        'max_enrollment': 'السعة القصوى',
                                                         'start_date': 'تاريخ البداية',
                                                         'category': 'الفئة'
                                                     };
@@ -88,34 +89,21 @@ const PublicCoursesPage = ({ courses, stats, lastUpdated }) => {
                                 
                                 <div className="course-footer">
                                     <div className="course-meta">
-                                        <small>
-                                            تم الإنشاء: {new Date(course.created_at).toLocaleDateString('ar-EG')}
-                                        </small>
+                                        <span className="meta-item">
+                                            <i className="fas fa-calendar-alt"></i>
+                                            تاريخ النشر: {new Date(course.created_at).toLocaleDateString('ar-EG')}
+                                        </span>
                                         {course.student_count > 0 && (
-                                            <small>
+                                            <span className="meta-item">
+                                                <i className="fas fa-users"></i>
                                                 عدد المسجلين: {course.student_count}
-                                            </small>
+                                            </span>
                                         )}
                                     </div>
                                     
-                                    <div className="course-actions">
-                                        <Link 
-                                            href="/login" 
-                                            className="btn btn-primary"
-                                            title="سجل دخولك للتقديم"
-                                        >
-                                            سجل للتقديم
-                                        </Link>
-                                        <button 
-                                            className="btn btn-secondary"
-                                            onClick={() => {
-                                                // Show course details modal or navigate to details page
-                                                alert('تفاصيل أكثر عن الدورة ستكون متاحة قريباً');
-                                            }}
-                                        >
-                                            تفاصيل أكثر
-                                        </button>
-                                    </div>
+                                    <Link href={`/courses/${course.id}`} className="btn-details">
+                                        عرض التفاصيل
+                                    </Link>
                                 </div>
                             </div>
                         ))
@@ -374,261 +362,50 @@ const PublicCoursesPage = ({ courses, stats, lastUpdated }) => {
  * performance optimization, and data consistency
  */
 export async function getStaticProps() {
-    // Use static fallback data during build to avoid database connection issues
-    console.log('Using static fallback data for public courses build');
-    return {
-        props: {
-            courses: [
-                {
-                    id: 1,
-                    name: "دورة تعليم القرآن الكريم",
-                    description: "دورة شاملة لتعليم القرآن الكريم والتجويد",
-                    details: { category: "تعليم ديني" },
-                    enrolled_count: 25,
-                    course_fee: 300,
-                    duration_days: 30,
-                    teacher_name: "الأستاذ محمد أحمد",
-                    status: "active",
-                    created_at: new Date().toISOString(),
-                    current_enrollment: 25,
-                    availability_status: "available"
-                },
-                {
-                    id: 2,
-                    name: "دورة اللغة العربية", 
-                    description: "تعلم اللغة العربية من الأساسيات",
-                    details: { category: "لغات" },
-                    enrolled_count: 18,
-                    course_fee: 250,
-                    duration_days: 45,
-                    teacher_name: "الأستاذة فاطمة علي",
-                    status: "active",
-                    created_at: new Date().toISOString(),
-                    current_enrollment: 18,
-                    availability_status: "available"
-                }
-            ],
-            stats: {
-                totalCourses: 25,
-                totalStudents: 150,
-                activeCourses: 20,
-                completedEnrollments: 45,
-                avgFee: 275
-            },
-            categories: [
-                { category: "تعليم ديني", course_count: 8 },
-                { category: "لغات", course_count: 6 },
-                { category: "تقنية", course_count: 5 }
-            ],
-            lastUpdated: new Date().toISOString(),
-            metadata: {
-                totalFetched: 2,
-                queriesExecuted: 3,
-                coursesSuccess: true,
-                statsSuccess: true,
-                categoriesSuccess: true,
-                totalPages: 1,
-                hasMoreCourses: false,
-                categoriesCount: 3,
-                dataFreshness: 'static',
-                hasErrors: false,
-                cacheStrategy: 'ISR',
-                revalidationTime: 600,
-                generatedAt: new Date().toISOString()
-            }
-        },
-        revalidate: 600
-    };
-}
-
-// Original function (disabled during build)
-async function getStaticPropsOriginal() {
-    // Fast fallback for development mode
-    if (process.env.NODE_ENV === 'development') {
-        const { getFastFallbackData } = await import('../lib/fastFallbacks');
-        return {
-            props: getFastFallbackData('courses'),
-            revalidate: 1
-        };
-    }
+    console.log('Fetching public course data for ISR...');
+    let client;
 
     try {
-        // Execute parallel queries for optimal performance using Promise.allSettled
-        const [coursesResult, statsResult, categoriesResult] = await Promise.allSettled([
-            // Enhanced courses query with comprehensive data
-            pool.query(`
-                SELECT 
-                    c.id, 
-                    c.name, 
-                    c.description, 
-                    c.details, 
-                    c.status, 
-                    c.created_at,
-                    c.updated_at,
-                    c.is_published,
-                    c.course_fee,
-                    c.duration_days,
-                    c.max_participants,
-                    c.start_date,
-                    c.end_date,
-                    COUNT(e.id) as student_count,
-                    u.full_name as teacher_name,
-                    u.id as teacher_id
-                FROM courses c
-                LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
-                LEFT JOIN users u ON c.teacher_id = u.id
-                WHERE (c.status = 'active' OR (c.status = 'published' AND c.is_published = true)) AND c.teacher_id IS NOT NULL
-                GROUP BY c.id, c.name, c.description, c.details, c.status, c.created_at, c.updated_at,
-                         c.is_published, c.course_fee, c.duration_days, c.max_participants, 
-                         c.start_date, c.end_date, u.full_name, u.id
-                ORDER BY c.created_at DESC, student_count DESC
-                LIMIT 100
-            `),
-            
-            // Comprehensive statistics query
-            pool.query(`
-                SELECT 
-                    (SELECT COUNT(*) FROM courses WHERE is_published = true AND is_published = true) as total_courses,
-                    (SELECT COUNT(DISTINCT user_id) FROM enrollments WHERE status = 'active') as total_students,
-                    (SELECT COUNT(*) FROM courses WHERE is_published = true AND is_launched = true) as active_courses,
-                    (SELECT COUNT(*) FROM enrollments WHERE status = 'completed') as completed_enrollments,
-                    (SELECT AVG(course_fee) FROM courses WHERE status = 'published' AND is_published = true AND course_fee > 0) as avg_fee
-            `),
-            
-            // Course categories for enhanced filtering
-            pool.query(`
-                SELECT DISTINCT 
-                    COALESCE(details->>'category', 'عام') as category,
-                    COUNT(*) as course_count,
-                    AVG(course_fee) as avg_category_fee
-                FROM courses 
-                WHERE (status = 'active' OR (status = 'published' AND is_published = true))
-                GROUP BY details->>'category'
-                ORDER BY course_count DESC
-                LIMIT 20
-            `)
-        ]);
+        client = await pool.connect();
 
-        // Process courses data with enhanced error handling and data transformation
-        let courses = [];
-        if (coursesResult.status === 'fulfilled') {
-            courses = coursesResult.value.rows.map(course => {
-                const studentCount = parseInt(course.student_count || 0);
-                const maxParticipants = parseInt(course.max_participants || 0);
-                
-                return {
-                    ...course,
-                    // Safe JSON parsing for details
-                    details: (() => {
-                        try {
-                            return typeof course.details === 'object' ? course.details : {};
-                        } catch {
-                            return {};
-                        }
-                    })(),
-                    // Type-safe numeric conversions
-                    student_count: studentCount,
-                    course_fee: parseFloat(course.course_fee || 0),
-                    duration_days: parseInt(course.duration_days || 0),
-                    max_participants: maxParticipants,
-                    // Safe date handling
-                    created_at: course.created_at ? new Date(course.created_at).toISOString() : null,
-                    updated_at: course.updated_at ? new Date(course.updated_at).toISOString() : null,
-                    start_date: course.start_date ? new Date(course.start_date).toISOString() : null,
-                    end_date: course.end_date ? new Date(course.end_date).toISOString() : null,
-                    // Computed fields for enhanced UX
-                    is_full: maxParticipants > 0 && studentCount >= maxParticipants,
-                    enrollment_percentage: maxParticipants > 0 
-                        ? Math.round((studentCount / maxParticipants) * 100) 
-                        : 0,
-                    is_available: maxParticipants === 0 || studentCount < maxParticipants
-                };
-            });
-        } else {
-            console.error('Failed to fetch courses:', coursesResult.reason);
-        }
+        // Fetch public, published courses with teacher name and student count
+        const coursesQuery = `
+            SELECT 
+                c.id, c.name, c.description, c.details, c.created_at,
+                c.course_fee, c.max_enrollment, c.start_date, c.duration_days,
+                c.days_per_week, c.hours_per_day,
+                COALESCE(u.full_name, 'غير محدد') as teacher_name,
+                COUNT(e.id)::int as student_count
+            FROM courses c
+            LEFT JOIN users u ON c.teacher_id = u.id
+            LEFT JOIN enrollments e ON c.id = e.course_id
+            WHERE c.is_public = true AND c.is_published = true
+            GROUP BY c.id, u.full_name
+            ORDER BY c.created_at DESC;
+        `;
+        const coursesRes = await client.query(coursesQuery);
 
-        // Process statistics with comprehensive error handling
-        let stats = {
-            totalCourses: 0,
-            totalStudents: 0,
-            activeCourses: 0,
-            completedEnrollments: 0,
-            avgCourseFee: 0
-        };
+        // Fetch overall statistics
+        const statsQuery = `
+            SELECT
+                (SELECT COUNT(*)::int FROM courses WHERE is_public = true AND is_published = true) as total_courses,
+                (SELECT COUNT(*)::int FROM enrollments) as total_students,
+                (SELECT COUNT(*)::int FROM courses WHERE is_launched = true) as active_courses;
+        `;
+        const statsRes = await client.query(statsQuery);
 
-        if (statsResult.status === 'fulfilled') {
-            const statsRow = statsResult.value.rows[0] || {};
-            stats = {
-                totalCourses: parseInt(statsRow.total_courses || 0),
-                totalStudents: parseInt(statsRow.total_students || 0),
-                activeCourses: parseInt(statsRow.active_courses || 0),
-                completedEnrollments: parseInt(statsRow.completed_enrollments || 0),
-                avgCourseFee: parseFloat(statsRow.avg_fee || 0)
-            };
-        } else {
-            console.error('Failed to fetch statistics:', statsResult.reason);
-        }
-
-        // Process categories with enhanced data
-        let categories = [];
-        if (categoriesResult.status === 'fulfilled') {
-            categories = categoriesResult.value.rows.map(cat => ({
-                name: cat.category || 'عام',
-                count: parseInt(cat.course_count || 0),
-                avgFee: parseFloat(cat.avg_category_fee || 0)
-            }));
-        } else {
-            console.error('Failed to fetch categories:', categoriesResult.reason);
-        }
-
-        return {
-            props: {
-                // Safe serialization using JSON.parse(JSON.stringify())
-                courses: JSON.parse(JSON.stringify(courses)),
-                stats: JSON.parse(JSON.stringify(stats)),
-                categories: JSON.parse(JSON.stringify(categories)),
-                lastUpdated: new Date().toISOString(),
-                // Enhanced metadata for monitoring and debugging
-                metadata: {
-                    totalFetched: courses.length,
-                    queriesExecuted: 3,
-                    coursesSuccess: coursesResult.status === 'fulfilled',
-                    statsSuccess: statsResult.status === 'fulfilled',
-                    categoriesSuccess: categoriesResult.status === 'fulfilled',
-                    hasErrors: [coursesResult, statsResult, categoriesResult].some(r => r.status === 'rejected'),
-                    cacheStrategy: 'ISR',
-                    revalidationTime: 600,
-                    generatedAt: new Date().toISOString()
-                }
-            },
-            // Revalidate every 10 minutes (600 seconds) for public content
-            // This balances data freshness with performance
-            revalidate: 600
-        };
+        return createSuccessResponse({
+            courses: coursesRes.rows,
+            stats: statsRes.rows[0],
+        });
 
     } catch (error) {
-        console.error('Critical error in getStaticProps for public courses:', error);
-        
-        // Import utilities for error response
-        // Return comprehensive error fallback
-        return createErrorResponse({
-            courses: [],
-            stats: {
-                totalCourses: 0,
-                totalStudents: 0,
-                activeCourses: 0,
-                completedEnrollments: 0,
-                avgFee: 0
-            },
-            categories: [],
-            metadata: {
-                totalPages: 0,
-                hasMoreCourses: false,
-                categoriesCount: 0,
-                dataFreshness: 'error'
-            }
-        }, REVALIDATION_TIMES.ERROR);
+        console.error('ISR Error in public-courses:', error);
+        return createErrorResponse(error);
+
+    } finally {
+        if (client) client.release();
+        console.log('Finished fetching public course data.');
     }
 }
 

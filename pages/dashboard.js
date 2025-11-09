@@ -176,7 +176,7 @@ export const getServerSideProps = withAuth(async (context) => {
             props.recentCourses = safeSerialize(recentCoursesRes.rows);
 
             try {
-                const pendingRequestsRes = await pool.query(`SELECT r.id, r.field_name, r.old_value, r.new_value, r.requested_at, u.full_name FROM user_edit_requests r JOIN users u ON r.user_id = u.id WHERE r.status = 'pending' ORDER BY r.requested_at DESC;`);
+                const pendingRequestsRes = await pool.query(`SELECT r.id, r.field_name, r.old_value, r.new_value, r.requested_at, u.full_name as user_name FROM user_edit_requests r JOIN users u ON r.user_id = u.id WHERE r.status = 'pending' ORDER BY r.requested_at DESC;`);
                 props.pendingRequests = safeSerialize(pendingRequestsRes.rows);
             } catch (err) {
                 console.log('Pending requests query failed, using empty array:', err.message);

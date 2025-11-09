@@ -33,12 +33,10 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
         start_date: '', // Fixed: was startDate
         days_per_week: 5, // Fixed: was weekDays
         hours_per_day: 2.0, // Fixed: was dailyHours
-        
-        // Add details jsonb structure
+        course_fee: 0,
+        max_enrollment: 15,
         details: {
-            cost: 0,
             currency: 'EGP',
-            max_seats: 15,
             teachers: [],
             target_roles: [],
             prerequisites: []
@@ -293,6 +291,32 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
             setMessage({
                 text: 'يرجى التحقق من صحة أنواع المهام المختارة',
                 type: 'error'
+            });
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/courses/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(formData),
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                setMessage({
+                    text: 'تم إنشاء الدورة بنجاح!',
+                    type: 'success'
+                });
+                onSubmit(result);
+            } else {
+                setMessage({
+                    text: result.message || 'حدث خطأ في إنشاء الدورة',
+                    type: 'error'
+                });
             });
             return;
         }
@@ -1045,9 +1069,9 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
                             <label className="block text-sm font-medium text-gray-700">التكلفة</label>
                             <input
                                 type="number"
-                                name="cost"
-                                value={formData.details.cost}
-                                onChange={handleDetailsChange}
+                                name="course_fee"
+                                value={formData.course_fee}
+                                onChange={handleInputChange}
                                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 min="0"
                                 required
@@ -1072,9 +1096,9 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
                             <label className="block text-sm font-medium text-gray-700">الحد الأقصى للمقاعد</label>
                             <input
                                 type="number"
-                                name="max_seats"
-                                value={formData.details.max_seats}
-                                onChange={handleDetailsChange}
+                                name="max_enrollment"
+                                value={formData.max_enrollment}
+                                onChange={handleInputChange}
                                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                 min="1"
                                 required

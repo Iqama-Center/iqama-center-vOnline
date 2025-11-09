@@ -135,67 +135,65 @@ const DailyGradebook = ({ students, dailyTasks, onGradeChange }) => {
     );
 };
 
-const CoursePage = ({ user, course, initialSchedule, initialTasks, students }) => {
+const CoursePage = ({ user, course, schedule, tasks: initialTasks, students, enrollment }) => {
     const [tasks, setTasks] = useState(initialTasks);
-    const [selectedDay, setSelectedDay] = useState(initialSchedule[0]?.id || null);
+    const [activeDay, setActiveDay] = useState(schedule[0]?.id || null);
 
+    // Handle task updates from child components (e.g., after submission)
     const handleTaskUpdate = (taskId, updatedData) => {
         setTasks(prevTasks => prevTasks.map(t => t.id === taskId ? { ...t, ...updatedData } : t));
     };
 
+    // Handle grade changes from the gradebook
     const handleGradeChange = async (taskId, studentId, grade) => {
-        const response = await fetch(`/api/tasks/${taskId}/grade`, {
+        // Note: This API endpoint needs to be adapted to handle grading for a specific student
+        const response = await fetch(`/api/submissions/grade`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ grade, feedback: '' })
+            body: JSON.stringify({ taskId, studentId, grade, feedback: 'تم التقييم' })
         });
         if (response.ok) {
             console.log('Grade updated successfully');
-            // You might want to update the local state here as well
+            // Optionally, update local state to reflect the change immediately
         }
     };
 
-    const renderUserView = () => {
-        const userTasks = tasks.filter(t => t.assigned_to_user_id === user.id && t.schedule_id === selectedDay);
+    const renderContentForDay = (dayId) => {
+        const dayTasks = tasks.filter(t => t.schedule_id === dayId);
         
         if (user.role === 'teacher') {
-            const teacherTasks = userTasks.filter(t => t.level_number === 2);
-            const studentGradeItems = tasks.filter(t => t.schedule_id === selectedDay && t.level_number === 3 && t.task_type === 'grade_item');
+            // Teacher's view: their own tasks + gradebook for students
+            const teacherTasks = dayTasks.filter(t => t.assigned_to === user.id);
+            const studentTasks = dayTasks.filter(t => t.assigned_to !== user.id);
 
             return (
                 <div>
                     <div className="tasks-list">
-                        <div className="section-header">
-                            <h4 className="section-title">مهامك لهذا اليوم</h4>
-                            <span className="section-subtitle">عرض منظم حسب النوع والحالة</span>
-                        </div>
-                        {teacherTasks.length === 0 && (
-                            <div className="empty-state">لا توجد مهام اليوم</div>
-                        )}
-                        <div className="tasks-grid">
-                            {teacherTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
-                        </div>
+                        <h4 className="section-title">مهامك الخاصة</h4>
+                        {teacherTasks.length > 0 ? (
+                            <div className="tasks-grid">
+                                {teacherTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
+                            </div>
+                        ) : <p>لا توجد مهام خاصة بك لهذا اليوم.</p>}
                     </div>
                     <DailyGradebook 
                         students={students}
-                        dailyTasks={studentGradeItems}
+                        dailyTasks={studentTasks}
                         onGradeChange={handleGradeChange}
                     />
                 </div>
             );
         } else {
+            // Student's view: their assigned tasks
+            const studentTasks = dayTasks.filter(t => t.assigned_to === user.id);
             return (
                 <div className="tasks-list">
-                    <div className="section-header">
-                        <h4 className="section-title">مهامك لهذا اليوم</h4>
-                        <span className="section-subtitle">عرض منظم حسب النوع والحالة</span>
-                    </div>
-                    {userTasks.length === 0 && (
-                        <div className="empty-state">لا توجد مهام اليوم</div>
-                    )}
-                    <div className="tasks-grid">
-                        {userTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
-                    </div>
+                     <h4 className="section-title">مهامك اليومية</h4>
+                    {studentTasks.length > 0 ? (
+                        <div className="tasks-grid">
+                            {studentTasks.map(task => <TaskItem key={task.id} task={task} onUpdate={handleTaskUpdate} />)}
+                        </div>
+                    ) : <p>لا توجد مهام لك لهذا اليوم.</p>}
                 </div>
             );
         }
@@ -203,50 +201,116 @@ const CoursePage = ({ user, course, initialSchedule, initialTasks, students }) =
 
     return (
         <Layout user={user}>
-            <h1>{course.name}</h1>
-            <div className="day-selector">
-                {initialSchedule.map(day => (
-                    <button key={day.id} onClick={() => setSelectedDay(day.id)} className={selectedDay === day.id ? 'active' : ''}>
-                        اليوم {day.day_number}
-                    </button>
-                ))}
-            </div>
-            <div className="day-content">
-                {selectedDay && renderUserView()}
+            <div className="course-page-container">
+                <header className="course-header">
+                    <h1>{course.name}</h1>
+                    <p>{course.description}</p>
+                    <div className="course-meta-info">
+                        <span><strong>المدرس:</strong> {course.teacher_name}</span>
+                        <span><strong>الحالة:</strong> {enrollment.status_arabic}</span>
+                    </div>
+                </header>
+
+                <nav className="course-schedule-nav">
+                    {schedule.map(day => (
+                        <button 
+                            key={day.id}
+                            className={`schedule-day-btn ${activeDay === day.id ? 'active' : ''}`}
+                            onClick={() => setActiveDay(day.id)}
+                        >
+                            {day.title}
+                        </button>
+                    ))}
+                </nav>
+
+                <main className="course-content-area">
+                    {activeDay ? renderContentForDay(activeDay) : <p>الرجاء اختيار يوم لعرض محتواه.</p>}
+                </main>
             </div>
         </Layout>
     );
 };
 
 export const getServerSideProps = withAuth(async (context) => {
-    const { user, query } = context;
-    const courseId = query.id;
+    const { id } = context.params;
+    const { user } = context;
+    let client;
 
     try {
-        const courseResult = await pool.query('SELECT * FROM courses WHERE id = $1', [courseId]);
-        if (courseResult.rows.length === 0) {
+        client = await pool.connect();
+
+        // Fetch main course details along with teacher's name
+        const courseRes = await client.query(`
+            SELECT c.*, u.full_name as teacher_name 
+            FROM courses c
+            LEFT JOIN users u ON c.teacher_id = u.id
+            WHERE c.id = $1
+        `, [id]);
+
+        if (courseRes.rows.length === 0) {
             return { notFound: true };
         }
+        const course = courseRes.rows[0];
 
-        const scheduleResult = await pool.query('SELECT * FROM course_schedule WHERE course_id = $1 ORDER BY day_number', [courseId]);
-        const tasksResult = await pool.query('SELECT * FROM tasks WHERE course_id = $1', [courseId]);
-        
-        // Fetch students for the gradebook
-        const studentsResult = await pool.query('SELECT u.id, u.full_name FROM users u JOIN enrollments e ON u.id = e.user_id WHERE e.course_id = $1 AND e.level_number = 3', [courseId]);
+        // Check user enrollment and get its status
+        const enrollmentRes = await client.query(`
+            SELECT *,
+                   CASE status
+                       WHEN 'active' THEN 'نشط'
+                       WHEN 'completed' THEN 'مكتمل'
+                       WHEN 'pending_payment' THEN 'في انتظار الدفع'
+                       ELSE 'غير محدد'
+                   END as status_arabic
+            FROM enrollments 
+            WHERE user_id = $1 AND course_id = $2
+        `, [user.id, id]);
+
+        // For now, let's assume user must be enrolled to see the page
+        if (enrollmentRes.rows.length === 0) {
+            return { redirect: { destination: '/courses', permanent: false } };
+        }
+        const enrollment = enrollmentRes.rows[0];
+
+        // Fetch the course schedule
+        const scheduleRes = await client.query(
+            'SELECT * FROM course_schedule WHERE course_id = $1 ORDER BY day_number',
+            [id]
+        );
+
+        // Fetch all tasks for the course
+        const tasksRes = await client.query(
+            'SELECT * FROM tasks WHERE course_id = $1',
+            [id]
+        );
+
+        // Fetch all students if the user is a teacher
+        let students = [];
+        if (user.role === 'teacher') {
+            const studentsRes = await client.query(`
+                SELECT u.id, u.full_name 
+                FROM users u
+                JOIN enrollments e ON u.id = e.user_id
+                WHERE e.course_id = $1 AND e.status = 'active'
+            `, [id]);
+            students = studentsRes.rows;
+        }
 
         return {
             props: {
                 user: safeSerialize(user),
-                course: safeSerialize(courseResult.rows[0]),
-                initialSchedule: safeSerialize(scheduleResult.rows),
-                initialTasks: safeSerialize(tasksResult.rows),
-                students: safeSerialize(studentsResult.rows),
+                course: safeSerialize(course),
+                schedule: safeSerialize(scheduleRes.rows),
+                tasks: safeSerialize(tasksRes.rows),
+                students: safeSerialize(students),
+                enrollment: safeSerialize(enrollment),
             },
         };
-    } catch (err) {
-        console.error("Error fetching course page data:", err);
-        return { notFound: true };
+    } catch (error) {
+        console.error(`Error fetching course page data for course ${id}:`, error);
+        return { props: { error: 'Failed to load course data.' } };
+    } finally {
+        if (client) client.release();
     }
-}, { roles: ['admin', 'head', 'teacher', 'student'] });
+});
 
 export default CoursePage;

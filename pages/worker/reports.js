@@ -1,74 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useRouter } from 'next/router';
 import Layout from '../../components/Layout';
 import { withAuth } from '../../lib/withAuth';
+import pool from '../../lib/db'; // Direct db access for SSR
 
-const WorkerReportsPage = ({ user }) => {
-    const [reports, setReports] = useState([]);
-    const [loading, setLoading] = useState(true);
+const WorkerReportsPage = ({ user, initialReports }) => {
+    const router = useRouter();
+    const [reports, setReports] = useState(initialReports);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [newReport, setNewReport] = useState({
         report_type: 'daily',
         title: '',
         content: '',
         report_date: new Date().toISOString().split('T')[0],
-        period_start: '',
-        period_end: '',
         tags: '',
         priority: 'normal'
     });
 
-    useEffect(() => {
-        loadReports();
-    }, []);
-
-    const loadReports = async () => {
-        try {
-            // Try to load real reports data from API
-            try {
-                const response = await fetch('/api/worker/reports');
-                if (response.ok) {
-                    const data = await response.json();
-                    setReports(data);
-                } else {
-                    setReports([]);
-                }
-            } catch (error) {
-                console.error('Failed to load reports:', error);
-                setReports([]);
-            }
-        } catch (error) {
-            console.error('Error loading reports:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
     const createReport = async () => {
+        setIsSubmitting(true);
         try {
-            // Mock creation - replace with actual API call
-            const report = {
-                id: Date.now(),
-                ...newReport,
-                status: 'draft',
-                created_at: new Date().toISOString()
-            };
-            setReports(prev => [report, ...prev]);
+            const response = await fetch('/api/worker/reports', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newReport),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create report');
+            }
+
+            // Reset form and close modal
             setShowCreateModal(false);
             setNewReport({
                 report_type: 'daily',
                 title: '',
                 content: '',
                 report_date: new Date().toISOString().split('T')[0],
-                period_start: '',
-                period_end: '',
                 tags: '',
                 priority: 'normal'
             });
+            
+            // Refresh data by reloading the page via SSR
+            router.replace(router.asPath);
+
         } catch (error) {
             console.error('Error creating report:', error);
+            // Optionally show an error message to the user
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
+    // Helper functions (getReportTypeText, getStatusText, etc.) remain the same
     const getReportTypeText = (type) => {
         const types = {
             'daily': 'يومي',
@@ -111,22 +96,7 @@ const WorkerReportsPage = ({ user }) => {
 
     const generateDailyReportTemplate = () => {
         const today = new Date().toLocaleDateString('ar-EG');
-        return `تقرير العمل اليومي - ${today}
-
-## المهام المنجزة:
-- 
-
-## التحديات المواجهة:
-- 
-
-## الإنجازات:
-- 
-
-## خطة الغد:
-- 
-
-## ملاحظات إضافية:
-- `;
+        return `تقرير العمل اليومي - ${today}\n\n## المهام المنجزة:\n- \n\n## التحديات المواجهة:\n- \n\n## الإنجازات:\n- \n\n## خطة الغد:\n- \n\n## ملاحظات إضافية:\n- `;
     };
 
     const generateWeeklyReportTemplate = () => {
@@ -134,33 +104,14 @@ const WorkerReportsPage = ({ user }) => {
         const weekStart = new Date(today.setDate(today.getDate() - today.getDay()));
         const weekEnd = new Date(today.setDate(today.getDate() - today.getDay() + 6));
         
-        return `تقرير العمل الأسبوعي
-الفترة: ${weekStart.toLocaleDateString('ar-EG')} - ${weekEnd.toLocaleDateString('ar-EG')}
-
-## ملخص الأسبوع:
-- 
-
-## المهام المكتملة:
-- 
-
-## المشاريع الجارية:
-- 
-
-## الإحصائيات:
-- عدد المهام المكتملة: 
-- ساعات العمل: 
-- معدل الإنجاز: 
-
-## التحديات والحلول:
-- 
-
-## خطة الأسبوع القادم:
-- `;
+        return `تقرير العمل الأسبوعي\nالفترة: ${weekStart.toLocaleDateString('ar-EG')} - ${weekEnd.toLocaleDateString('ar-EG')}\n\n## ملخص الأسبوع:\n- \n\n## المهام المكتملة:\n- \n\n## المشاريع الجارية:\n- \n\n## الإحصائيات:\n- عدد المهام المكتملة: \n- ساعات العمل: \n- معدل الإنجاز: \n\n## التحديات والحلول:\n- \n\n## خطة الأسبوع القادم:\n- `;
     };
+
 
     return (
         <Layout user={user}>
             <style jsx>{`
+                /* Styles are unchanged */
                 .reports-container {
                     padding: 20px;
                 }
@@ -391,11 +342,6 @@ const WorkerReportsPage = ({ user }) => {
                     color: #ddd;
                     margin-bottom: 20px;
                 }
-                .loading {
-                    text-align: center;
-                    padding: 40px;
-                    color: #666;
-                }
                 @media (max-width: 768px) {
                     .actions-bar {
                         flex-direction: column;
@@ -433,12 +379,7 @@ const WorkerReportsPage = ({ user }) => {
                     </button>
                 </div>
 
-                {loading ? (
-                    <div className="loading">
-                        <i className="fas fa-spinner fa-spin fa-2x"></i>
-                        <p>جاري تحميل التقارير...</p>
-                    </div>
-                ) : reports.length === 0 ? (
+                {reports.length === 0 ? (
                     <div className="empty-state">
                         <i className="fas fa-file-alt"></i>
                         <h3>لا توجد تقارير</h3>
@@ -453,7 +394,7 @@ const WorkerReportsPage = ({ user }) => {
                 ) : (
                     <div className="reports-grid">
                         {reports.map(report => (
-                            <div key={report.id} className="report-card">
+                            <div key={report.id} className="report-card" style={{ borderLeftColor: getStatusColor(report.status) }}>
                                 <div className="report-header">
                                     <h3 className="report-title">{report.title}</h3>
                                     <div className="report-badges">
@@ -624,8 +565,9 @@ const WorkerReportsPage = ({ user }) => {
                                 <button 
                                     className="btn btn-success"
                                     onClick={createReport}
+                                    disabled={isSubmitting}
                                 >
-                                    <i className="fas fa-save"></i> حفظ التقرير
+                                    {isSubmitting ? <><i className="fas fa-spinner fa-spin"></i> جاري الحفظ...</> : <><i className="fas fa-save"></i> حفظ التقرير</>}
                                 </button>
                             </div>
                         </div>
@@ -648,11 +590,28 @@ export const getServerSideProps = withAuth(async (context) => {
         };
     }
 
-    return {
-        props: {
-            user: JSON.parse(JSON.stringify(user))
-        }
-    };
+    try {
+        const reportsResult = await pool.query(
+            'SELECT * FROM worker_reports WHERE worker_id = $1 ORDER BY report_date DESC, created_at DESC',
+            [user.id]
+        );
+
+        return {
+            props: {
+                user: JSON.parse(JSON.stringify(user)),
+                initialReports: JSON.parse(JSON.stringify(reportsResult.rows)),
+            },
+        };
+    } catch (error) {
+        console.error("Error in getServerSideProps for worker reports:", error);
+        return {
+            props: {
+                user: JSON.parse(JSON.stringify(user)),
+                initialReports: [],
+                error: 'Failed to load reports.'
+            }
+        };
+    }
 }, { roles: ['worker'] });
 
 export default WorkerReportsPage;

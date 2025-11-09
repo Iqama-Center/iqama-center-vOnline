@@ -209,7 +209,7 @@ async function getFilteredCoursesQuery(filters, userId) {
             u.full_name as teacher_name,
             COUNT(e.id) as current_enrollment,
             CASE 
-                WHEN COUNT(e.id) >= (c.details->>'max_students')::int THEN 'full'
+                WHEN COUNT(e.id) >= c.max_enrollment THEN 'full'
                 WHEN c.status = 'active' THEN 'available'
                 ELSE 'unavailable'
             END as availability_status

@@ -21,7 +21,7 @@ export default async function handler(req, res) {
                 // Get questions for specific exam
                 const questions = await pool.query(`
                     SELECT ceq.*, e.title as exam_title
-                    FROM course_exam_questions ceq
+                    FROM exam_questions ceq
                     JOIN exams e ON ceq.exam_id = e.id
                     WHERE ceq.exam_id = $1
                     ORDER BY ceq.question_order ASC`,
@@ -33,7 +33,7 @@ export default async function handler(req, res) {
                 // Get all questions
                 const questions = await pool.query(`
                     SELECT ceq.*, e.title as exam_title, c.name as course_name
-                    FROM course_exam_questions ceq
+                    FROM exam_questions ceq
                     JOIN exams e ON ceq.exam_id = e.id
                     JOIN courses c ON e.course_id = c.id
                     ORDER BY ceq.created_at DESC`
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
             }
 
             const newQuestion = await pool.query(`
-                INSERT INTO course_exam_questions (
+                INSERT INTO exam_questions (
                     exam_id, question_text, question_type, options,
                     correct_answer, points, question_order
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
             }
 
             const updatedQuestion = await pool.query(`
-                UPDATE course_exam_questions 
+                UPDATE exam_questions 
                 SET question_text = $1, question_type = $2, options = $3,
                     correct_answer = $4, points = $5, question_order = $6
                 WHERE id = $7 RETURNING *`,
@@ -141,7 +141,7 @@ export default async function handler(req, res) {
             }
 
             const deletedQuestion = await pool.query(
-                'DELETE FROM course_exam_questions WHERE id = $1 RETURNING *',
+                'DELETE FROM exam_questions WHERE id = $1 RETURNING *',
                 [id]
             );
 

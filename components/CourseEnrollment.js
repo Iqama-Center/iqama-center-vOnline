@@ -282,11 +282,11 @@ const CourseEnrollment = ({ course, user, onEnrollmentSuccess }) => {
                 </div>
             </div>
 
-            {course.details?.cost > 0 && (
+            {course.course_fee > 0 && (
                 <div className="cost-info">
                     <h4>💰 تكلفة الدورة</h4>
                     <div className="cost-amount">
-                        {course.details?.cost} {course.details?.currency || 'EGP'}
+                        {course.course_fee} {course.details?.currency || 'EGP'}
                     </div>
                     <p>سيتم طلب الدفع بعد تأكيد التسجيل</p>
                 </div>
@@ -325,7 +325,7 @@ const CourseEnrollment = ({ course, user, onEnrollmentSuccess }) => {
                     </div>
                 )}
 
-                {user.role === 'student' && course.details?.cost === 0 && (
+                {user.role === 'student' && course.course_fee === 0 && (
                     <div className="approval-section">
                         <h5>✅ موافقة المشرف</h5>
                         <label className="approval-checkbox">

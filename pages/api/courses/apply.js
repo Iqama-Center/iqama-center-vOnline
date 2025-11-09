@@ -11,6 +11,7 @@ export default async function handler(req, res) {
     const token = req.cookies.token;
     if (!token) return res.status(401).json({ message: 'Not authenticated' });
 
+    const client = await pool.connect();
     try {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
         const { courseId } = req.body;
@@ -19,17 +20,20 @@ export default async function handler(req, res) {
             return res.status(400).json({ message: 'Course ID is required' });
         }
 
-        // Check if course exists and is available
-        const courseResult = await pool.query(`
-            SELECT c.*, COUNT(e.id) as current_enrollment
+        await client.query('BEGIN');
+
+        // Check if course exists, is available, and lock the row for update
+        const courseResult = await client.query(`
+            SELECT c.*, 
+                   (SELECT COUNT(e.id) FROM enrollments e WHERE c.id = e.course_id AND e.status = 'active') as current_enrollment
             FROM courses c
-            LEFT JOIN enrollments e ON c.id = e.course_id AND e.status = 'active'
-            WHERE c.id = $1 AND c.status = 'active'
-            GROUP BY c.id
+            WHERE c.id = $1 AND c.is_published = true AND c.is_launched = false
+            FOR UPDATE
         `, [courseId]);
 
         if (courseResult.rows.length === 0) {
-            return res.status(404).json({ message: 'الدورة غير موجودة أو غير متاحة' });
+            await client.query('ROLLBACK');
+            return res.status(404).json({ message: 'الدورة غير موجودة أو غير متاحة للتسجيل' });
         }
 
         const course = courseResult.rows[0];
@@ -37,21 +41,23 @@ export default async function handler(req, res) {
 
         // Check if course is full
         if (currentEnrollment >= course.max_enrollment) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: 'الدورة مكتملة العدد' });
         }
 
         // Check if user is already enrolled
-        const existingEnrollment = await pool.query(
+        const existingEnrollment = await client.query(
             'SELECT id FROM enrollments WHERE user_id = $1 AND course_id = $2',
             [decoded.id, courseId]
         );
 
         if (existingEnrollment.rows.length > 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: 'أنت مسجل بالفعل في هذه الدورة' });
         }
 
         // Get user details for eligibility check
-        const userResult = await pool.query(
+        const userResult = await client.query(
             'SELECT id, full_name, email, role, details FROM users WHERE id = $1', 
             [decoded.id]
         );
@@ -61,16 +67,18 @@ export default async function handler(req, res) {
         const courseDetails = course.details || {};
         const userDetails = user.details || {};
 
-        // Age check
+        // Age check using snake_case
         if (courseDetails.min_age || courseDetails.max_age) {
             const birthDate = new Date(userDetails.birth_date);
             const age = Math.floor((Date.now() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
             
             if (courseDetails.min_age && age < courseDetails.min_age) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({ message: `هذه الدورة للأعمار من ${courseDetails.min_age} سنة فما فوق` });
             }
             
             if (courseDetails.max_age && age > courseDetails.max_age) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({ message: `هذه الدورة للأعمار حتى ${courseDetails.max_age} سنة` });
             }
         }
@@ -78,20 +86,19 @@ export default async function handler(req, res) {
         // Gender check
         if (courseDetails.gender && courseDetails.gender !== 'both' && userDetails.gender !== courseDetails.gender) {
             const genderText = courseDetails.gender === 'male' ? 'الذكور' : 'الإناث';
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: `هذه الدورة مخصصة لـ${genderText} فقط` });
         }
 
-        // Determine financial requirements based on participant config and user role
+        // Determine financial requirements and enrollment status
         let financialConfig = null;
         let enrollmentStatus = 'pending_payment';
         
-        // Parse participant config to find matching level for user role
         if (course.participant_config) {
             const participantConfig = typeof course.participant_config === 'string' 
                 ? JSON.parse(course.participant_config) 
                 : course.participant_config;
             
-            // Find the level that matches user's role
             for (const [levelKey, config] of Object.entries(participantConfig)) {
                 if (config.roles && config.roles.includes(user.role)) {
                     financialConfig = config.financial;
@@ -100,109 +107,114 @@ export default async function handler(req, res) {
             }
         }
 
-        // Determine enrollment status and payment requirements
         if (financialConfig && financialConfig.type !== 'none') {
             if (financialConfig.type === 'pay') {
                 enrollmentStatus = 'pending_payment';
             } else if (financialConfig.type === 'receive') {
-                enrollmentStatus = 'active'; // No payment required, they receive money
+                enrollmentStatus = 'active';
             }
         } else {
-            // Fallback to course-level pricing
             if (courseDetails.price && courseDetails.price > 0) {
                 enrollmentStatus = 'pending_payment';
             } else {
-                enrollmentStatus = 'active'; // Free course
+                enrollmentStatus = 'active';
             }
         }
 
         // Create enrollment
-        // Validate inputs before insertion
-        const parsedUserId = parseInt(decoded.id);
-        const parsedCourseId = parseInt(courseId);
-        if (isNaN(parsedUserId) || parsedUserId <= 0) {
-            throw new Error(`Invalid user ID: ${decoded.id}`);
-        }
-        if (isNaN(parsedCourseId) || parsedCourseId <= 0) {
-            throw new Error(`Invalid course ID: ${courseId}`);
-        }
-        
-        const enrollment = await pool.query(
+        const enrollment = await client.query(
             `INSERT INTO enrollments (user_id, course_id, status) 
              VALUES ($1, $2, $3) 
-             ON CONFLICT (user_id, course_id) DO UPDATE SET status = $3
+             ON CONFLICT (user_id, course_id) DO NOTHING
              RETURNING *`,
-            [parsedUserId, parsedCourseId, enrollmentStatus]
+            [decoded.id, courseId, enrollmentStatus]
         );
+        
+        if (enrollment.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return res.status(400).json({ message: 'لم يتم التسجيل، قد تكون مسجلاً بالفعل.' });
+        }
 
-        // Create payment record if user needs to pay
+        // Create payment or reward record
         if (enrollmentStatus === 'pending_payment') {
             let amount, currency, paymentNotes;
             
             if (financialConfig && financialConfig.type === 'pay') {
-                // Use participant-level financial config
                 amount = parseFloat(financialConfig.amount);
                 currency = financialConfig.currency || 'EGP';
                 paymentNotes = `رسوم التسجيل في دورة ${course.name} (${user.role})`;
             } else {
-                // Fallback to course-level pricing
                 amount = courseDetails.price;
                 currency = courseDetails.currency || 'SAR';
                 paymentNotes = `رسوم التسجيل في دورة ${course.name}`;
             }
 
             const dueDate = new Date();
-            dueDate.setDate(dueDate.getDate() + 7); // Payment due in 7 days
+            dueDate.setDate(dueDate.getDate() + 7);
 
-            await pool.query(
+            await client.query(
                 `INSERT INTO payments (enrollment_id, amount, currency, due_date, status, notes) 
                  VALUES ($1, $2, $3, $4, 'due', $5)`,
-                [
-                    enrollment.rows[0].id,
-                    amount,
-                    currency,
-                    dueDate,
-                    paymentNotes
-                ]
+                [enrollment.rows[0].id, amount, currency, dueDate, paymentNotes]
             );
 
-            // Send payment notification
-            await NotificationService.createPaymentReminder(
-                [decoded.id],
-                amount,
-                currency,
-                dueDate
-            );
-        }
-
-        // Create reward record if user receives payment
-        if (financialConfig && financialConfig.type === 'receive') {
+        } else if (financialConfig && financialConfig.type === 'receive') {
             const amount = parseFloat(financialConfig.amount);
             const currency = financialConfig.currency || 'EGP';
             
-            // Create a positive payment record (reward/salary)
-            await pool.query(
+            await client.query(
                 `INSERT INTO payments (enrollment_id, amount, currency, due_date, status, notes) 
                  VALUES ($1, $2, $3, $4, 'paid', $5)`,
-                [
-                    enrollment.rows[0].id,
-                    amount,
-                    currency,
-                    new Date(course.start_date),
-                    `مكافأة المشاركة في دورة ${course.name} (${user.role}) - REWARD`
-                ]
+                [enrollment.rows[0].id, amount, currency, new Date(course.start_date), `مكافأة المشاركة في دورة ${course.name} (${user.role}) - REWARD`]
             );
         }
 
-        // Update course enrollment count
-        await pool.query(
-            'UPDATE courses SET current_enrollment = current_enrollment + 1 WHERE id = $1',
-            [courseId]
+        // Create notification for supervisors
+        const supervisors = await client.query(
+            "SELECT id FROM users WHERE role IN ('admin', 'head')"
         );
 
-        // Create notification for course supervisors
-        const supervisors = await pool.query(
-            "SELECT id FROM users WHERE role IN ('admin', 'head') OR reports_to IS NULL"
+        const notificationMessage = `تسجيل جديد: ${user.full_name} في دورة ${course.name}`;
+        const notificationLink = `/admin/courses/${courseId}`;
+        const notificationType = 'course_enrollment';
+
+        for (const supervisor of supervisors.rows) {
+            await NotificationService.createNotification(
+                client,
+                supervisor.id,
+                notificationType,
+                notificationMessage,
+                notificationLink
+            );
+        }
+        
+        await client.query('COMMIT');
+
+        // Determine success message
+        let successMessage;
+        if (enrollmentStatus === 'pending_payment') {
+            const paymentAmount = (financialConfig && financialConfig.type === 'pay') ? financialConfig.amount : courseDetails.price;
+            const paymentCurrency = (financialConfig && financialConfig.type === 'pay') ? financialConfig.currency : courseDetails.currency;
+            successMessage = `تم التسجيل بنجاح! يرجى دفع رسوم ${paymentAmount} ${paymentCurrency} خلال 7 أيام لتأكيد التسجيل`;
+        } else if (financialConfig && financialConfig.type === 'receive') {
+            successMessage = `تم التسجيل بنجاح! ستحصل على مكافأة قدرها ${financialConfig.amount} ${financialConfig.currency} عند بدء الدورة`;
+        } else {
+            successMessage = 'تم التسجيل بنجاح في الدورة';
+        }
+
+        res.status(201).json({
+            message: successMessage,
+            enrollment: enrollment.rows[0]
+        });
+
+    } catch (err) {
+        await client.query('ROLLBACK');
+        console.error('Course application error:', err);
+        errorHandler(err, res);
+    } finally {
+        client.release();
+    }
+}"SELECT id FROM users WHERE role IN ('admin', 'head') OR reports_to IS NULL"
         );
 
         for (const supervisor of supervisors.rows) {

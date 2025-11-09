@@ -26,7 +26,7 @@ export interface UserDetails {
   languages?: string[];
   parent_notes?: string;
   is_payment_locked?: boolean;
-  workerSpecializations?: string[];
+  worker_specializations?: string[];
   // Legacy field - should be migrated to parent_child_relationships table
   parent_id?: number;
 }

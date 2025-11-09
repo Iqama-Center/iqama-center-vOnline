@@ -23,42 +23,7 @@ export default async function handler(req, res) {
             return res.status(403).json({ message: 'غير مصرح لك بتعديل الدورات.' });
         }
         
-        const { 
-            name, 
-            description, 
-            content_outline,
-            duration_days,
-            start_date,
-            days_per_week,
-            hours_per_day,
-            details,
-            participant_config,
-            auto_launch_settings
-        } = req.body;
-
-        if (!name || name.trim() === '') {
-            return res.status(400).json({ message: 'اسم الدورة مطلوب.' });
-        }
-        
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            const result = await client.query(`
-                UPDATE courses SET 
-                    name = $1, 
-                    description = $2, 
-                    content_outline = $3,
-                    duration_days = $4,
-                    start_date = $5,
-                    days_per_week = $6,
-                    hours_per_day = $7,
-                    details = $8,
-                    participant_config = $9,
-                    auto_launch_settings = $10
-                WHERE id = $11 
-                RETURNING *`,
-                [
+                const { 
                     name, 
                     description, 
                     content_outline,
@@ -66,13 +31,62 @@ export default async function handler(req, res) {
                     start_date,
                     days_per_week,
                     hours_per_day,
-                    JSON.stringify(details || {}),
-                    JSON.stringify(participant_config || {}),
-                    JSON.stringify(auto_launch_settings || {}),
-                    id
-                ]
-            );
-            
+                    details: originalDetails,
+                    participant_config,
+                    auto_launch_settings,
+                    course_fee,
+                    max_enrollment
+                } = req.body;
+        
+                if (!name || name.trim() === '') {
+                    return res.status(400).json({ message: 'اسم الدورة مطلوب.' });
+                }
+        
+                // Prioritize top-level fields, but fall back to details object for backward compatibility
+                const final_course_fee = course_fee ?? originalDetails?.cost;
+                const final_max_enrollment = max_enrollment ?? originalDetails?.max_seats;
+        
+                // Sanitize details object by removing fields that are now top-level columns
+                const details = { ...originalDetails };
+                delete details.cost;
+                delete details.max_seats;
+                
+                const client = await pool.connect();
+                try {
+                    await client.query('BEGIN');
+        
+                    const result = await client.query(`
+                        UPDATE courses SET 
+                            name = $1, 
+                            description = $2, 
+                            content_outline = $3,
+                            duration_days = $4,
+                            start_date = $5,
+                            days_per_week = $6,
+                            hours_per_day = $7,
+                            details = $8,
+                            participant_config = $9,
+                            auto_launch_settings = $10,
+                            course_fee = $12,
+                            max_enrollment = $13
+                        WHERE id = $11 
+                        RETURNING *`, 
+                        [
+                            name, 
+                            description, 
+                            content_outline,
+                            duration_days,
+                            start_date,
+                            days_per_week,
+                            hours_per_day,
+                            details || {},
+                            participant_config || {},
+                            auto_launch_settings || {},
+                            id,
+                            final_course_fee,
+                            final_max_enrollment
+                        ]
+                    );            
             if (result.rows.length === 0) {
                 await client.query('ROLLBACK');
                 return res.status(404).json({ message: 'الدورة غير موجودة.' });

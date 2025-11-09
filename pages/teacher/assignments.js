@@ -1,61 +1,107 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useRouter } from 'next/router';
+import Layout from '../../components/Layout';
+import { withAuth } from '../../lib/withAuth';
+import pool from '../../lib/db';
+import { safeSerialize } from '../../lib/serializer';
 import AssignmentsSchedulerSettings from '../../components/AssignmentsSchedulerSettings';
 import AssignmentTemplateForm from '../../components/AssignmentTemplateForm';
 
-export default function TeacherAssignmentsPage(){
-  const [courses, setCourses] = useState([]);
-  const [courseId, setCourseId] = useState('');
-  const [templates, setTemplates] = useState([]);
-  const [preview, setPreview] = useState([]);
+export default function TeacherAssignmentsPage({ user, courses, templates, preview, selectedCourseId }) {
+  const router = useRouter();
 
-  useEffect(()=>{
-    async function load(){
-      const res = await fetch('/api/teacher/courses');
-      if(res.ok){ const data = await res.json(); setCourses(data); if(data.length) setCourseId(data[0].id); }
-    }
-    load();
-  },[]);
+  const handleCourseChange = (e) => {
+    const newCourseId = e.target.value;
+    router.push(`/teacher/assignments?course_id=${newCourseId}`);
+  };
 
-  useEffect(()=>{
-    async function loadTemplates(){
-      if(!courseId) return;
-      const res = await fetch(`/api/assignments/templates?courseId=${courseId}`);
-      if(res.ok){ setTemplates(await res.json()); }
-      const res2 = await fetch(`/api/assignments/preview?courseId=${courseId}`);
-      if(res2.ok){ setPreview(await res2.json()); }
-    }
-    loadTemplates();
-  },[courseId]);
+  const refreshData = () => {
+    router.replace(router.asPath);
+  };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold">جدولة المهام للمعلم</h1>
-      <div className="flex items-center space-x-2">
-        <label>الدورة</label>
-        <select className="border p-2" value={courseId} onChange={(e)=> setCourseId(e.target.value)}>
-          {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
-      </div>
+    <Layout user={user}>
+        <div className="container mx-auto p-4 space-y-6">
+            <h1 className="text-2xl font-bold">جدولة المهام للمعلم</h1>
+            
+            {courses.length > 0 ? (
+                <>
+                    <div className="flex items-center space-x-2">
+                        <label htmlFor="course-select">الدورة</label>
+                        <select id="course-select" className="border p-2" value={selectedCourseId} onChange={handleCourseChange}>
+                        {courses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                    </div>
 
-      <AssignmentsSchedulerSettings courseId={courseId} />
-      <AssignmentTemplateForm courseId={courseId} onCreated={()=> {
-        fetch(`/api/assignments/templates?courseId=${courseId}`).then(r=>r.json()).then(setTemplates);
-        fetch(`/api/assignments/preview?courseId=${courseId}`).then(r=>r.json()).then(setPreview);
-      }} />
+                    <AssignmentsSchedulerSettings courseId={selectedCourseId} />
+                    <AssignmentTemplateForm courseId={selectedCourseId} onCreated={refreshData} />
 
-      <section>
-        <h3 className="font-bold">النماذج</h3>
-        <ul className="list-disc pl-6">
-          {templates.map(t => <li key={t.id}>{t.title}</li>)}
-        </ul>
-      </section>
+                    <section>
+                        <h3 className="font-bold">النماذج الحالية</h3>
+                        <ul className="list-disc pl-6">
+                        {templates.map(t => <li key={t.id}>{t.title}</li>)}
+                        </ul>
+                    </section>
 
-      <section>
-        <h3 className="font-bold">المعاينة (4 أسابيع)</h3>
-        <ul className="list-disc pl-6">
-          {preview.map((p,i)=> <li key={i}>{new Date(p.publishAt).toLocaleString('ar-EG')} - {p.title} - {p.status}</li>)}
-        </ul>
-      </section>
-    </div>
+                    <section>
+                        <h3 className="font-bold">المعاينة (4 أسابيع قادمة)</h3>
+                        <ul className="list-disc pl-6">
+                        {preview.map((p,i)=> <li key={i}>{new Date(p.publish_at).toLocaleString('ar-EG')} - {p.title} - {p.status}</li>)}
+                        </ul>
+                    </section>
+                </>
+            ) : (
+                <p>أنت غير مسجل كمدرس في أي دورات حاليًا.</p>
+            )}
+        </div>
+    </Layout>
   );
 }
+
+export const getServerSideProps = withAuth(async (context) => {
+    const { user } = context;
+    const { course_id } = context.query;
+
+    if (user.role !== 'teacher' && user.role !== 'admin') {
+        return { redirect: { destination: '/dashboard', permanent: false } };
+    }
+
+    try {
+        const coursesRes = await pool.query(
+            'SELECT id, name FROM courses WHERE teacher_id = $1 ORDER BY name',
+            [user.id]
+        );
+        const courses = coursesRes.rows;
+
+        if (courses.length === 0) {
+            return { props: { user, courses: [], templates: [], preview: [], selectedCourseId: null } };
+        }
+
+        const targetCourseId = course_id || courses[0].id;
+
+        const templatesRes = await pool.query('SELECT * FROM assignment_templates WHERE course_id = $1', [targetCourseId]);
+        
+        // This is a simplified preview logic. The original API might have more complex logic.
+        const previewRes = await pool.query(
+            `SELECT at.title, ao.publish_at, ao.status
+             FROM assignment_occurrences ao
+             JOIN assignment_templates at ON ao.template_id = at.id
+             WHERE at.course_id = $1 AND ao.publish_at BETWEEN NOW() AND NOW() + INTERVAL '4 weeks'
+             ORDER BY ao.publish_at ASC`,
+            [targetCourseId]
+        );
+
+        return {
+            props: {
+                user,
+                courses: safeSerialize(courses),
+                templates: safeSerialize(templatesRes.rows),
+                preview: safeSerialize(previewRes.rows),
+                selectedCourseId: targetCourseId,
+            },
+        };
+    } catch (error) {
+        console.error('Error fetching teacher assignments data:', error);
+        return { props: { user, courses: [], templates: [], preview: [], selectedCourseId: null, error: 'Failed to load data' } };
+    }
+});

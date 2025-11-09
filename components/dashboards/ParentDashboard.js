@@ -22,7 +22,7 @@ const AddChildModal = ({ isOpen, onClose, onSubmit }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         const { fullName, email, phone, password, ...details } = formData;
-        const data = { fullName, email, phone, password, details };
+        const data = { full_name: fullName, email, phone, password, details };
 
         const result = await onSubmit(data);
         setMessage(result);

@@ -12,14 +12,14 @@ const handler = async (req, res) => {
             SELECT 
                 e.id, 
                 e.status, 
-                e.enrollment_date,
+                e.enrolled_at,
                 u.full_name as user_name,
-                c.course_name
+                c.name as course_name
             FROM enrollments e
             JOIN users u ON e.user_id = u.id
             JOIN courses c ON e.course_id = c.id
             WHERE e.status IN ('pending_approval', 'pending_payment')
-            ORDER BY e.enrollment_date DESC
+            ORDER BY e.enrolled_at DESC
         `);
 
         return res.status(200).json({ enrollments });

@@ -1,5 +1,10 @@
 import pool from '../../../lib/db';
 import { withAuth } from '../../../lib/withAuth';
+import errorHandler from '../../../lib/errorHandler';
+import NotificationService from '../../../services/notificationService';
+
+// This endpoint is being refactored to align with the unified data model.
+// It now maps the old request body structure to the new, standardized one.
 
 export default withAuth(async (req, res) => {
     if (req.method !== 'POST') {
@@ -7,280 +12,124 @@ export default withAuth(async (req, res) => {
     }
 
     const { user } = req;
-    
-    // التحقق من صلاحيات إنشاء الدورات
     if (!['admin', 'head', 'teacher'].includes(user.role)) {
         return res.status(403).json({ message: 'غير مصرح لك بإنشاء الدورات' });
     }
 
+    const client = await pool.connect();
     try {
         const {
-            name,
-            description,
-            tableOfContents,
-            duration,
-            startDate,
-            weekDays,
-            dailyHours,
-            grade1,
-            grade2,
-            grade3,
-            autoLaunchOptions,
-            autoFill,
-            schedule
+            name, description, tableOfContents, duration, startDate, weekDays, dailyHours,
+            grade1, grade2, grade3, // Old participant structure
+            autoLaunchOptions, schedule, ratingSettings // New names for clarity
         } = req.body;
 
-        // التحقق من البيانات المطلوبة
         if (!name || !description || !duration || !startDate) {
             return res.status(400).json({ message: 'البيانات الأساسية مطلوبة' });
         }
 
-        // التحقق من وجود أدوار محددة
-        const hasSelectedRoles = [grade1, grade2, grade3].some(grade => 
-            grade && grade.categories && grade.categories.some(cat => cat.selected && cat.count > 0)
-        );
+        // --- Data Mapping Layer ---
+        // 1. Map old participant structure to the new 'participant_config' format
+        const participant_config = {};
+        const gradeMap = { grade1, grade2, grade3 };
+        for (const [key, grade] of Object.entries(gradeMap)) {
+            if (grade && grade.categories?.some(c => c.selected && c.count > 0)) {
+                const levelNum = key.replace('grade', '');
+                participant_config[`level_${levelNum}`] = {
+                    name: grade.title,
+                    roles: grade.categories.filter(c => c.selected).map(c => c.name), // This is a simplification
+                    min: grade.categories.reduce((sum, c) => sum + (c.selected ? c.count : 0), 0),
+                    max: grade.categories.reduce((sum, c) => sum + (c.selected ? c.count : 0), 0) * 2, // Example logic
+                    optimal: grade.categories.reduce((sum, c) => sum + (c.selected ? c.count : 0), 0)
+                };
+            }
+        }
 
-        if (!hasSelectedRoles) {
+        if (Object.keys(participant_config).length === 0) {
             return res.status(400).json({ message: 'يجب تحديد أدوار المشاركين في الدورة' });
         }
 
-        await pool.query('BEGIN');
-
-        // إنشاء الدورة الأساسية
-        const courseResult = await pool.query(`
-            INSERT INTO courses (
-                name, 
-                description, 
-                table_of_contents,
-                duration, 
-                start_date, 
-                week_days,
-                daily_hours,
-                status, 
-                created_by, 
-                created_at,
-                details
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), $10) 
-            RETURNING id
-        `, [
+        // 2. Map other fields to correct schema names
+        const courseData = {
             name,
             description,
-            tableOfContents,
-            parseInt(duration),
-            startDate,
-            parseInt(weekDays) || null,
-            parseFloat(dailyHours) || null,
-            'draft',
-            user.id,
-            JSON.stringify({
-                autoLaunchOptions,
-                autoFill,
-                ratingSystem: {
-                    grade1,
-                    grade2,
-                    grade3
-                }
-            })
-        ]);
+            content_outline: tableOfContents,
+            duration_days: parseInt(duration),
+            start_date: startDate,
+            days_per_week: parseInt(weekDays) || null,
+            hours_per_day: parseFloat(dailyHours) || null,
+            details: { autoLaunchOptions, ratingSystem: { grade1, grade2, grade3 } }, // Keep original for reference
+            participant_config,
+            auto_launch_settings: autoLaunchOptions
+        };
 
+        // --- Unified Logic Start ---
+        await client.query('BEGIN');
+
+        const courseResult = await client.query(`
+            INSERT INTO courses (name, description, content_outline, duration_days, start_date, days_per_week, hours_per_day, created_by, details, participant_config, auto_launch_settings, status)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft') RETURNING id`, [
+                courseData.name, courseData.description, courseData.content_outline, courseData.duration_days, courseData.start_date,
+                courseData.days_per_week, courseData.hours_per_day, user.id, courseData.details, 
+                courseData.participant_config, courseData.auto_launch_settings
+            ]
+        );
         const courseId = courseResult.rows[0].id;
 
-        // إنشاء أدوار الدورة والمتطلبات
-        for (const [gradeKey, grade] of Object.entries({ grade1, grade2, grade3 })) {
-            if (grade && grade.categories) {
-                for (const category of grade.categories) {
-                    if (category.selected && category.count > 0) {
-                        await pool.query(`
-                            INSERT INTO course_roles (
-                                course_id,
-                                grade_level,
-                                grade_title,
-                                category_name,
-                                required_count,
-                                current_count,
-                                created_at
-                            ) VALUES ($1, $2, $3, $4, $5, 0, NOW())
-                        `, [
-                            courseId,
-                            gradeKey,
-                            grade.title,
-                            category.name,
-                            category.count
-                        ]);
-                    }
-                }
-            }
+        // Bulk insert participant levels
+        for (const [levelKey, config] of Object.entries(participant_config)) {
+            const levelNumber = parseInt(levelKey.split('_')[1]);
+            await client.query(`
+                INSERT INTO course_participant_levels (course_id, level_number, level_name, target_roles, min_count, max_count, optimal_count)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)`, [
+                    courseId, levelNumber, config.name, config.roles, config.min, config.max, config.optimal
+                ]
+            );
         }
 
-        // إنشاء الجدولة اليومية إذا تم توفيرها
-        if (schedule && Array.isArray(schedule)) {
-            for (const day of schedule) {
-                await pool.query(`
-                    INSERT INTO course_schedule (
-                        course_id,
-                        day_number,
-                        title,
-                        content_links,
-                        meeting_link,
-                        meeting_start_time,
-                        tasks,
-                        exam_questions,
-                        is_completed,
-                        created_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-                `, [
-                    courseId,
-                    day.dayNumber,
-                    day.title,
-                    JSON.stringify(day.contentLinks || []),
-                    day.meetingLink,
-                    day.meetingStartTime,
-                    JSON.stringify(day.tasks || {}),
-                    day.examQuestions,
-                    day.isCompleted || false
-                ]);
-            }
-        }
-
-        // إنشاء إعدادات التقييم
-        await pool.query(`
-            INSERT INTO course_rating_settings (
-                course_id,
-                attendance_weight,
-                participation_weight,
-                task_completion_weight,
-                exam_weight,
-                teaching_quality_weight,
-                auto_calculate,
-                created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        `, [
-            courseId,
-            20, // وزن الحضور
-            20, // وزن المشاركة
-            30, // وزن إنجاز المهام
-            30, // وزن الامتحان
-            20, // وزن جودة التدريس
-            true // حساب تلقائي
-        ]);
-
-        await pool.query('COMMIT');
-
-        // إرسال إشعارات للمستخدمين المؤهلين
-        await notifyEligibleUsers(courseId, { grade1, grade2, grade3 });
-
-        res.status(201).json({
-            message: 'تم إنشاء الدورة بنجاح',
-            courseId,
-            course: {
-                id: courseId,
-                name,
-                description,
-                duration,
-                startDate,
-                status: 'draft'
-            }
-        });
-
-    } catch (error) {
-        await pool.query('ROLLBACK');
-        console.error('Course creation error:', error);
-        res.status(500).json({ 
-            message: 'حدث خطأ في إنشاء الدورة',
-            error: process.env.NODE_ENV === 'development' ? error.message : undefined
-        });
-    }
-});
-
-// دالة إرسال الإشعارات للمستخدمين المؤهلين
-async function notifyEligibleUsers(courseId, grades) {
-    try {
-        // الحصول على معلومات الدورة
-        const courseResult = await pool.query(
-            'SELECT name, description FROM courses WHERE id = $1',
-            [courseId]
-        );
-        
-        if (courseResult.rows.length === 0) return;
-        
-        const course = courseResult.rows[0];
-
-        // تحديد المستخدمين المؤهلين لكل درجة
-        const eligibleUsers = [];
-
-        for (const [gradeKey, grade] of Object.entries(grades)) {
-            if (grade && grade.categories) {
-                for (const category of grade.categories) {
-                    if (category.selected && category.count > 0) {
-                        // تحديد الأدوار المطابقة لكل فئة
-                        const roles = getCategoryRoles(category.name);
-                        
-                        if (roles.length > 0) {
-                            const usersResult = await pool.query(`
-                                SELECT id, full_name, email, role 
-                                FROM users 
-                                WHERE role = ANY($1) 
-                                AND id NOT IN (
-                                    SELECT user_id 
-                                    FROM enrollments 
-                                    WHERE course_id = $2
-                                )
-                                LIMIT $3
-                            `, [roles, courseId, category.count * 2]); // ضعف العدد للاحتياط
-
-                            eligibleUsers.push(...usersResult.rows.map(user => ({
-                                ...user,
-                                gradeLevel: gradeKey,
-                                gradeTitle: grade.title,
-                                categoryName: category.name
-                            })));
-                        }
-                    }
-                }
-            }
-        }
-
-        // إرسال الإشعارات
-        for (const user of eligibleUsers) {
-            await pool.query(`
-                INSERT INTO notifications (
-                    user_id,
-                    title,
-                    message,
-                    type,
-                    link,
-                    created_at
-                ) VALUES ($1, $2, $3, $4, $5, NOW())
-            `, [
-                user.id,
-                'دورة جديدة متاحة',
-                `تم إتاحة دورة جديدة: ${course.name}. يمكنك التقديم عليها كـ ${user.gradeTitle} - ${user.categoryName}`,
-                'course_available',
-                `/courses/${courseId}`
+        // Bulk insert schedule
+        if (schedule && Array.isArray(schedule) && schedule.length > 0) {
+            const scheduleValues = schedule.map(day => [
+                courseId,
+                day.dayNumber,
+                day.title,
+                (day.contentLinks && day.contentLinks[0]) || null,
+                day.meetingLink,
+                day.meetingStartTime || null,
+                JSON.stringify(day.tasks || {}),
+                JSON.stringify(day.examQuestions || {})
+            ]);
+            await client.query(`
+                INSERT INTO course_schedule (course_id, day_number, title, content_url, meeting_link, meeting_start_time, assignments, exam_content)
+                SELECT * FROM unnest($1::integer[], $2::integer[], $3::varchar[], $4::varchar[], $5::varchar[], $6::time[], $7::jsonb[], $8::jsonb[])
+            `, [ 
+                scheduleValues.map(v => v[0]), scheduleValues.map(v => v[1]), scheduleValues.map(v => v[2]), 
+                scheduleValues.map(v => v[3]), scheduleValues.map(v => v[4]), scheduleValues.map(v => v[5]), 
+                scheduleValues.map(v => v[6]), scheduleValues.map(v => v[7])
             ]);
         }
 
+        // Insert rating settings
+        if (ratingSettings) {
+            await client.query(`
+                INSERT INTO course_rating_settings (course_id, attendance_weight, participation_weight, task_completion_weight, exam_weight, teaching_quality_weight, auto_calculate)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+            `, [
+                courseId, ratingSettings.attendance, ratingSettings.participation, ratingSettings.tasks, 
+                ratingSettings.exams, ratingSettings.quality, ratingSettings.auto_calculate ?? true
+            ]);
+        }
+
+        await client.query('COMMIT');
+
+        res.status(201).json({ message: 'تم إنشاء الدورة بنجاح', courseId });
+
     } catch (error) {
-        console.error('Notification error:', error);
-        // لا نرمي خطأ هنا لأن إنشاء الدورة نجح
+        await client.query('ROLLBACK').catch(console.error);
+        console.error('Course creation error:', error);
+        errorHandler(error, res);
     }
-}
-
-// دالة تحديد الأدوار المطابقة لكل فئة
-function getCategoryRoles(categoryName) {
-    const categoryMappings = {
-        'طالب': ['student'],
-        'عامل': ['worker'],
-        'معلم': ['teacher'],
-        'مدرب': ['teacher'],
-        'رئيس قسم': ['head'],
-        'مشرف': ['admin'],
-        'رئيس قسم عليا': ['head'],
-        'إدارة عليا': ['admin']
-    };
-    
-    return categoryMappings[categoryName] || [];
-}
-
-// Tables already exist in schema.sql - removed duplicate creation to prevent conflicts
-// If you need to modify table structure, use proper database migrations instead
+    finally {
+        client.release();
+    }
+});
