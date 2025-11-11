@@ -36,9 +36,9 @@ const CourseMessagesPage = ({ user, course, enrollmentStatus }) => {
                 }
             `}</style>
 
-            <Link href={`/courses/${course.id}`} className="back-link">
+            <a href={`/courses/${course.id}`} className="back-link">
                 <i className="fas fa-arrow-right"></i> العودة إلى صفحة الدورة
-            </Link>
+            </a>
 
             <div className="page-header">
                 <h1><i className="fas fa-comments"></i> ساحة النقاش - {course.name}</h1>

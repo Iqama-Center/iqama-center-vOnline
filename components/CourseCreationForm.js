@@ -540,378 +540,6 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
     const renderStep3 = () => (
         <div className="step-content">
             <h3><i className="fas fa-magic"></i> الملء التلقائي (اختياري)</h3>
-            <p className="step-description">يمكنك تعيين قيم افتراضية لتسريع عملية جدولة الدورة</p>
-
-            <div className="form-group">
-                <label>رابط اللقاء الثابت</label>
-                <input
-                    type="url"
-                    value={formData.autoFill.meetingLink}
-                    onChange={(e) => handleAutoFillChange('meetingLink', e.target.value)}
-                    placeholder="https://zoom.us/j/123456789"
-                />
-            </div>
-
-            <div className="form-group">
-                <label>نمط رابط المحتوى (استخدم ** للأرقام المتغيرة)</label>
-                <input
-                    type="text"
-                    value={formData.autoFill.contentLinkPattern}
-                    onChange={(e) => handleAutoFillChange('contentLinkPattern', e.target.value)}
-                    placeholder="https://example.com/lesson-**.pdf"
-                />
-                <small>مثال: https://example.com/lesson-**.pdf سيصبح lesson-01.pdf, lesson-02.pdf</small>
-            </div>
-
-            <div className="form-row">
-                <div className="form-group">
-                    <label>رقم البداية</label>
-                    <input
-                        type="number"
-                        value={formData.autoFill.startNumber}
-                        onChange={(e) => handleAutoFillChange('startNumber', parseInt(e.target.value) || 1)}
-                        min="1"
-                    />
-                </div>
-                <div className="form-group">
-                    <label>رقم النهاية</label>
-                    <input
-                        type="number"
-                        value={formData.autoFill.endNumber}
-                        onChange={(e) => handleAutoFillChange('endNumber', parseInt(e.target.value) || 10)}
-                        min="1"
-                    />
-                </div>
-            </div>
-
-            {/* Enhanced Task Management Section - إضافة المهام */}
-            <div className="enhanced-task-section">
-                <h4>
-                    <i className="fas fa-tasks"></i> إضافة المهام التلقائية
-                    <label className="task-generation-toggle">
-                        <input
-                            type="checkbox"
-                            checked={formData.taskConfiguration.enableTaskGeneration}
-                            onChange={(e) => setFormData(prev => ({
-                                ...prev,
-                                taskConfiguration: {
-                                    ...prev.taskConfiguration,
-                                    enableTaskGeneration: e.target.checked
-                                }
-                            }))}
-                        />
-                        <span>تفعيل توليد المهام التلقائي</span>
-                    </label>
-                </h4>
-                
-                {formData.taskConfiguration.enableTaskGeneration && (
-                    <div className="task-configuration-container">
-                        <div className="task-info-banner">
-                            <div className="task-type-info">
-                                <div className="daily-tasks-info">
-                                    <h6>📅 المهام اليومية</h6>
-                                    <p>تنتهي صلاحيتها خلال 24 ساعة وتقلل الدرجة عند التأخير</p>
-                                </div>
-                                <div className="fixed-tasks-info">
-                                    <h6>📋 المهام الثابتة</h6>
-                                    <p>لها مواعيد تسليم محددة يمكن تخصيصها</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        {Object.entries(formData.participant_config).map(([levelKey, config]) => (
-                            <div key={levelKey} className="level-task-configuration">
-                                <h5>
-                                    {levelKey === 'level_1' && '🎯 مهام المشرفين'}
-                                    {levelKey === 'level_2' && '👨‍🏫 مهام المعلمين'}
-                                    {levelKey === 'level_3' && '🎓 مهام الطلاب'}
-                                    ({config.name})
-                                </h5>
-                                
-                                <div className="task-list">
-                                    {(formData.taskConfiguration[levelKey] || []).map((task, index) => (
-                                        <div key={index} className="task-configuration-item">
-                                            <div className="task-header">
-                                                <select
-                                                    value={task.category}
-                                                    onChange={(e) => updateTaskConfiguration(levelKey, index, 'category', e.target.value)}
-                                                    className="task-category-select"
-                                                >
-                                                    <option value="daily">مهمة يومية (24 ساعة)</option>
-                                                    <option value="fixed">مهمة ثابتة (موعد محدد)</option>
-                                                </select>
-                                                
-                                                <select
-                                                    value={task.type}
-                                                    onChange={(e) => updateTaskConfiguration(levelKey, index, 'type', e.target.value)}
-                                                    className="task-type-select"
-                                                >
-                                                    <option value="">اختر نوع المهمة</option>
-                                                    {levelKey === 'level_3' && (
-                                                        <>
-                                                            <option value="daily_reading">قراءة يومية</option>
-                                                            <option value="daily_quiz">اختبار يومي</option>
-                                                            <option value="homework">واجب منزلي</option>
-                                                            <option value="project">مشروع تطبيقي</option>
-                                                            <option value="daily_wird">ورد يومي</option>
-                                                        </>
-                                                    )}
-                                                    {levelKey === 'level_2' && (
-                                                        <>
-                                                            <option value="daily_evaluation">تقييم الطلاب</option>
-                                                            <option value="attendance_record">تسجيل الحضور</option>
-                                                            <option value="lesson_preparation">تحضير الدرس</option>
-                                                            <option value="grading">تصحيح الواجبات</option>
-                                                        </>
-                                                    )}
-                                                    {levelKey === 'level_1' && (
-                                                        <>
-                                                            <option value="daily_monitoring">مراقبة يومية</option>
-                                                            <option value="performance_review">مراجعة الأداء</option>
-                                                            <option value="communication_followup">متابعة التواصل</option>
-                                                        </>
-                                                    )}
-                                                </select>
-                                                
-                                                <input
-                                                    type="number"
-                                                    placeholder="الدرجة"
-                                                    value={task.maxScore}
-                                                    onChange={(e) => updateTaskConfiguration(levelKey, index, 'maxScore', parseInt(e.target.value) || 0)}
-                                                    className="task-score-input"
-                                                    min="0"
-                                                    max="100"
-                                                />
-                                                
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeTaskTemplate(levelKey, index)}
-                                                    className="remove-task-btn"
-                                                    title="حذف المهمة"
-                                                >
-                                                    🗑️
-                                                </button>
-                                            </div>
-                                            
-                                            <div className="task-details">
-                                                <input
-                                                    type="text"
-                                                    placeholder="عنوان المهمة"
-                                                    value={task.title}
-                                                    onChange={(e) => updateTaskConfiguration(levelKey, index, 'title', e.target.value)}
-                                                    className="task-title-input"
-                                                />
-                                                
-                                                <textarea
-                                                    placeholder="وصف المهمة"
-                                                    value={task.description}
-                                                    onChange={(e) => updateTaskConfiguration(levelKey, index, 'description', e.target.value)}
-                                                    className="task-description-textarea"
-                                                    rows="2"
-                                                />
-                                                
-                                                <textarea
-                                                    placeholder="تعليمات التنفيذ"
-                                                    value={task.instructions}
-                                                    onChange={(e) => updateTaskConfiguration(levelKey, index, 'instructions', e.target.value)}
-                                                    className="task-instructions-textarea"
-                                                    rows="2"
-                                                />
-                                            </div>
-                                            
-                                            <div className="task-settings">
-                                                {task.category === 'daily' ? (
-                                                    <div className="daily-task-settings">
-                                                        <label>نسبة خصم التأخير (%)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={task.gradeReduction}
-                                                            onChange={(e) => updateTaskConfiguration(levelKey, index, 'gradeReduction', parseInt(e.target.value) || 10)}
-                                                            min="0"
-                                                            max="100"
-                                                            className="grade-reduction-input"
-                                                        />
-                                                    </div>
-                                                ) : (
-                                                    <div className="fixed-task-settings">
-                                                        <label>موعد التسليم (أيام من تاريخ الجلسة)</label>
-                                                        <input
-                                                            type="number"
-                                                            value={task.dueAfterDays}
-                                                            onChange={(e) => updateTaskConfiguration(levelKey, index, 'dueAfterDays', parseInt(e.target.value) || 1)}
-                                                            min="1"
-                                                            max="30"
-                                                            className="due-days-input"
-                                                        />
-                                                        
-                                                        <label>الأولوية</label>
-                                                        <select
-                                                            value={task.priority}
-                                                            onChange={(e) => updateTaskConfiguration(levelKey, index, 'priority', e.target.value)}
-                                                            className="priority-select"
-                                                        >
-                                                            <option value="low">منخفضة</option>
-                                                            <option value="medium">متوسطة</option>
-                                                            <option value="high">عالية</option>
-                                                        </select>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    
-                                    <button
-                                        type="button"
-                                        onClick={() => addTaskToConfiguration(levelKey)}
-                                        className="add-task-btn"
-                                    >
-                                        ➕ إضافة مهمة جديدة
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
-
-            <div className="task-templates-section">
-                <h4>قوالب التكاليف المفصلة لكل درجة (قديم)</h4>
-                
-                {Object.entries(formData.participant_config).map(([levelKey, config]) => (
-                    <div key={levelKey} className="level-task-templates">
-                        <h5>
-                            {levelKey === 'level_1' && '🎯 درجة 1 - المشرف'}
-                            {levelKey === 'level_2' && '👨‍🏫 درجة 2 - المسؤول'}
-                            {levelKey === 'level_3' && '🎓 درجة 3 - المتلقي'}
-                            ({config.name})
-                        </h5>
-                        
-                        <div className="task-template-list">
-                            {(formData.taskTemplates && formData.taskTemplates[levelKey] || []).map((task, index) => (
-                                <div key={index} className="task-template-item">
-                                    <div className="task-template-header">
-                                        <select
-                                            value={task.type}
-                                            onChange={(e) => updateTaskTemplate(levelKey, index, 'type', e.target.value)}
-                                            className="task-type-select"
-                                        >
-                                            <option value="">اختر نوع التكليف</option>
-                                            {levelKey === 'level_3' && (
-                                                <>
-                                                    <option value="exam">امتحان يومي</option>
-                                                    <option value="homework">واجب منزلي</option>
-                                                    <option value="reading">قراءة</option>
-                                                    <option value="daily_wird">ورد يومي</option>
-                                                </>
-                                            )}
-                                            {levelKey === 'level_2' && (
-                                                <>
-                                                    <option value="review">تقييم الطلاب</option>
-                                                    <option value="grading">تصحيح الواجبات</option>
-                                                    <option value="attendance">تسجيل الحضور</option>
-                                                </>
-                                            )}
-                                            {levelKey === 'level_1' && (
-                                                <>
-                                                    <option value="review">مراجعة التقارير</option>
-                                                    <option value="supervision">متابعة الأداء</option>
-                                                    <option value="communication">التواصل مع الغائبين</option>
-                                                </>
-                                            )}
-                                        </select>
-                                        
-                                        <input
-                                            type="text"
-                                            placeholder="عنوان التكليف"
-                                            value={task.title}
-                                            onChange={(e) => updateTaskTemplate(levelKey, index, 'title', e.target.value)}
-                                            className="task-title-input"
-                                        />
-                                        
-                                        <input
-                                            type="number"
-                                            placeholder="الدرجة"
-                                            value={task.maxScore}
-                                            onChange={(e) => updateTaskTemplate(levelKey, index, 'maxScore', parseInt(e.target.value) || 100)}
-                                            className="task-score-input"
-                                            min="1"
-                                            max="100"
-                                        />
-                                        
-                                        <button
-                                            type="button"
-                                            onClick={() => removeTaskTemplate(levelKey, index)}
-                                            className="remove-task-btn"
-                                            title="حذف التكليف"
-                                        >
-                                            🗑️
-                                        </button>
-                                    </div>
-                                    
-                                    <textarea
-                                        placeholder="وصف التكليف"
-                                        value={task.description}
-                                        onChange={(e) => updateTaskTemplate(levelKey, index, 'description', e.target.value)}
-                                        className="task-description-textarea"
-                                        rows="2"
-                                    />
-                                    
-                                    <textarea
-                                        placeholder="تعليمات التنفيذ"
-                                        value={task.instructions}
-                                        onChange={(e) => updateTaskTemplate(levelKey, index, 'instructions', e.target.value)}
-                                        className="task-instructions-textarea"
-                                        rows="2"
-                                    />
-                                </div>
-                            ))}
-                            
-                            <button
-                                type="button"
-                                onClick={() => addTaskTemplate(levelKey)}
-                                className="add-task-template-btn"
-                            >
-                                ➕ إضافة تكليف جديد (قديم)
-                            </button>
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Legacy simple task input for backward compatibility */}
-            <div className="default-tasks-section">
-                <h4>التكاليف الافتراضية البسيطة (اختياري)</h4>
-                
-                <div className="form-group">
-                    <label>تكاليف المتلقين (درجة 3) - الطلاب</label>
-                    <textarea
-                        value={formData.autoFill.defaultTasks.level_3}
-                        onChange={(e) => handleAutoFillChange('defaultTasks.level_3', e.target.value)}
-                        placeholder="امتحان اليوم، مراجعة المحتوى..."
-                        rows="2"
-                    />
-                </div>
-
-                <div className="form-group">
-                    <label>تكاليف المسؤولين (درجة 2) - المعلمين</label>
-                    <textarea
-                        value={formData.autoFill.defaultTasks.level_2}
-                        onChange={(e) => handleAutoFillChange('defaultTasks.level_2', e.target.value)}
-                        placeholder="إعداد المحتوى، متابعة الطلاب..."
-                        rows="2"
-                    />
-                </div>
-
-                <div className="form-group">
-                    <label>تكاليف المشرفين (درجة 1)</label>
-                    <textarea
-                        value={formData.autoFill.defaultTasks.level_1}
-                        onChange={(e) => handleAutoFillChange('defaultTasks.level_1', e.target.value)}
-                        placeholder="مراجعة التقارير، تقييم الأداء..."
-                        rows="2"
-                    />
-                </div>
-            </div>
         </div>
     );
 

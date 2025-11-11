@@ -82,6 +82,7 @@ const ExamQuestionManager = ({ examId, onQuestionsUpdated }) => {
     };
 
     const handleDelete = async (questionId) => {
+        // eslint-disable-next-line no-alert
         if (!window.confirm('هل أنت متأكد من حذف هذا السؤال؟')) return;
 
         try {
@@ -165,6 +166,7 @@ const ExamQuestionManager = ({ examId, onQuestionsUpdated }) => {
                     questionOrder: question.id || 1
                 };
 
+                // eslint-disable-next-line no-console
                 console.log('Importing question:', questionData); // Debug log
 
                 try {
@@ -231,7 +233,7 @@ const ExamQuestionManager = ({ examId, onQuestionsUpdated }) => {
 
         try {
             for (const [questionId, changes] of Object.entries(editedQuestions)) {
-                const originalQuestion = questions.find(q => q.id === questionId);
+                const originalQuestion = questions.find(q => q.id === parseInt(questionId));
                 if (!originalQuestion) continue;
 
                 const updatedData = {
