@@ -108,19 +108,19 @@ const CoursesISR = ({
                     {/* Statistics */}
                     <div className="stats-summary">
                         <div className="stat-item">
-                            <span className="stat-number">{stats.totalCourses}</span>
+                            <span className="stat-number">{stats.total_courses}</span>
                             <span className="stat-label">إجمالي الدورات</span>
                         </div>
                         <div className="stat-item">
-                            <span className="stat-number">{stats.activeCourses}</span>
+                            <span className="stat-number">{stats.active_courses}</span>
                             <span className="stat-label">دورة نشطة</span>
                         </div>
                         <div className="stat-item">
-                            <span className="stat-number">{stats.totalStudents}</span>
+                            <span className="stat-number">{stats.total_students}</span>
                             <span className="stat-label">طالب مسجل</span>
                         </div>
                         <div className="stat-item">
-                            <span className="stat-number">{stats.completedEnrollments}</span>
+                            <span className="stat-number">{stats.completed_enrollments}</span>
                             <span className="stat-label">تم إكمالها</span>
                         </div>
                     </div>
@@ -274,9 +274,7 @@ const CoursesISR = ({
                     </p>
                 </footer>
             </div>
-        </Layout>
-    );
-    <style jsx>{`
+            <style jsx>{`
                 .courses-container {
                     max-width: 1200px;
                     margin: 0 auto;
@@ -545,15 +543,18 @@ const CoursesISR = ({
                     .results-info { flex-direction: column; gap: 10px; text-align: center; }
                 }
             `}</style>
+        </Layout>
+    );
 
 };
 
 /**
  * getStaticProps: Fetches data at build time and re-generates it periodically.
  */
-export async function getStaticProps() {
+export const getStaticProps = withAuth(async (context) => {
     console.log('Fetching data for courses-isr page...');
     let client;
+    const { user } = context; // Get user from context
 
     try {
         client = await pool.connect();
@@ -587,7 +588,9 @@ export async function getStaticProps() {
             SELECT
                 (SELECT COUNT(*)::int FROM courses WHERE is_public = true AND is_published = true) as total_courses,
                 (SELECT COUNT(*)::int FROM users WHERE role = 'student') as total_students,
-                (SELECT COUNT(*)::int FROM users WHERE role = 'teacher') as total_teachers;
+                (SELECT COUNT(*)::int FROM users WHERE role = 'teacher') as total_teachers,
+                (SELECT COUNT(*)::int FROM courses WHERE is_launched = true AND is_public = true AND is_published = true) as active_courses,
+                (SELECT COUNT(*)::int FROM enrollments WHERE status = 'completed') as completed_enrollments;
         `;
         const statsRes = await client.query(statsQuery);
 
@@ -595,6 +598,7 @@ export async function getStaticProps() {
             courses: coursesRes.rows,
             categories: categoriesRes.rows.map(r => r.category),
             stats: statsRes.rows[0],
+            user: user, // Pass user to the component
         });
 
     } catch (error) {
@@ -605,7 +609,9 @@ export async function getStaticProps() {
         if (client) client.release();
         console.log('Finished fetching data for courses-isr.');
     }
-}
+});
 
 // Wrap the component with withAuth to get user info
-export default withAuth(CoursesISR);
+// export default withAuth(CoursesISR); // Remove this line
+
+export default CoursesISR;
