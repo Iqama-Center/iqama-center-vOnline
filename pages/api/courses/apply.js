@@ -154,7 +154,7 @@ export default async function handler(req, res) {
 
             await client.query(
                 `INSERT INTO payments (enrollment_id, amount, currency, due_date, status, notes) 
-                 VALUES ($1, $2, a$3, $4, 'due', $5)`,
+                 VALUES ($1, $2, $3, $4, 'due', $5)`,
                 [enrollment.rows[0].id, amount, currency, dueDate, paymentNotes]
             );
 

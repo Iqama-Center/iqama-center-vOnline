@@ -89,13 +89,13 @@ export default async function handler(req, res) {
         if (isNaN(parsedUserId) || parsedUserId <= 0) {
             throw new Error(`Invalid user ID: ${userId}`);
         }
-        if (isNaN(parsedCourseId) || parsedCourseId <= 0) {
-            throw new Error(`Invalid course ID: ${courseId}`);
-        }
+                if (isNaN(parsedCourseId) || parsedCourseId <= 0) {
+                    throw new Error(`Invalid course ID: ${courseId}`);
+                }
+                
+                const { preferred_days, preferred_start_time } = req.body;
         
-        const { preferred_days, preferred_start_time } = req.body;
-
-        const enrollment = await pool.query(
+                const enrollment = await pool.query(
             `INSERT INTO enrollments (user_id, course_id, status, preferred_days, preferred_start_time) 
              VALUES ($1, $2, $3, $4, $5) 
              ON CONFLICT (user_id, course_id) DO UPDATE SET status = EXCLUDED.status, preferred_days = EXCLUDED.preferred_days, preferred_start_time = EXCLUDED.preferred_start_time
