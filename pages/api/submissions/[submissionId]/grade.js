@@ -92,7 +92,7 @@ export default async function handler(req, res) {
                     );
                 }
 
-                // console.log(`Performance updated after grading: ${performanceResult.success ? 'Success' : 'Failed'}`);
+                console.log(`Performance updated after grading: ${performanceResult.success ? 'Success' : 'Failed'}`);
             }
         } catch (performanceError) {
             console.error('Performance update error (non-critical):', performanceError);

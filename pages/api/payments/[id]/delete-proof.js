@@ -47,7 +47,7 @@ export default async function handler(req, res) {
             try {
                 if (fs.existsSync(filePath)) {
                     fs.unlinkSync(filePath);
-                    // console.log(`Deleted file: ${filePath}`);
+                    console.log(`Deleted file: ${filePath}`);
                 }
             } catch (fileError) {
                 console.error('Error deleting file:', fileError);

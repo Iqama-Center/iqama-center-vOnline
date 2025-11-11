@@ -56,9 +56,9 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
     };
 
     const handleDeleteCourse = async (courseId) => {
-        // if (!confirm('هل أنت متأكد من حذف هذه الدورة؟ لن يمكن التراجع عن هذا الإجراء.')) {
-        //     return;
-        // }
+        if (!confirm('هل أنت متأكد من حذف هذه الدورة؟ لن يمكن التراجع عن هذا الإجراء.')) {
+            return;
+        }
 
         const result = await handleApiCall(
             `/api/courses/${courseId}`,
@@ -92,9 +92,9 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
     };
 
     const handleLaunchCourse = async (courseId) => {
-        // if (!confirm('هل أنت متأكد من بدء انطلاق الدورة؟ لن يمكن التراجع عن هذا الإجراء.')) {
-        //     return;
-        // }
+        if (!confirm('هل أنت متأكد من بدء انطلاق الدورة؟ لن يمكن التراجع عن هذا الإجراء.')) {
+            return;
+        }
 
         const result = await handleApiCall(
             `/api/courses/${courseId}/launch`,
@@ -130,9 +130,9 @@ const CourseManagementPage = ({ user, courses: initialCourses }) => {
     };
 
     const handleUnpublishCourse = async (courseId) => {
-        // if (!confirm('هل أنت متأكد من إلغاء نشر هذه الدورة؟ سيتم إلغاء جميع التسجيلات المعلقة.')) {
-        //     return;
-        // }
+        if (!confirm('هل أنت متأكد من إلغاء نشر هذه الدورة؟ سيتم إلغاء جميع التسجيلات المعلقة.')) {
+            return;
+        }
 
         const result = await handleApiCall(
             `/api/courses/${courseId}/unpublish`,

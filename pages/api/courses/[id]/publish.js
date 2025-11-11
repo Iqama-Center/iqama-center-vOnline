@@ -44,7 +44,7 @@ export default async function handler(req, res) {
                     [id]
                 );
             } catch (levelError) {
-                // console.log('course_participant_levels table not found, using participant_config from course');
+                console.log('course_participant_levels table not found, using participant_config from course');
             }
 
             // Create notifications based on participant configuration hierarchy
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
                         level2Roles = config.level_2.roles;
                     }
                 } catch (parseError) {
-                    // console.log('Error parsing participant_config, using default roles');
+                    console.log('Error parsing participant_config, using default roles');
                 }
             }
 
@@ -117,15 +117,15 @@ export default async function handler(req, res) {
                             ]
                         );
                     } catch (notificationError) {
-                        // console.log('Failed to create notification for user:', user.id, notificationError.message);
+                        console.log('Failed to create notification for user:', user.id, notificationError.message);
                         // Continue with other users even if one fails
                     }
                 }
 
-                // console.log(`Course published: ${course.name}, notified ${targetUsers.rows.length} users`);
+                console.log(`Course published: ${course.name}, notified ${targetUsers.rows.length} users`);
                 
             } catch (userQueryError) {
-                // console.log('Failed to query users or create notifications:', userQueryError.message);
+                console.log('Failed to query users or create notifications:', userQueryError.message);
                 // Don't fail the entire publish process if notifications fail
             }
 

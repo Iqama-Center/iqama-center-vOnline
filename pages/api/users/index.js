@@ -38,7 +38,7 @@ export default async function handler(req, res) {
 
         const usersResult = await pool.query(query, params);
 
-        // console.log(`Fetched ${usersResult.rows.length} users from database`);
+        console.log(`Fetched ${usersResult.rows.length} users from database`);
         
         res.status(200).json(usersResult.rows);
 

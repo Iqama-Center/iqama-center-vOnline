@@ -23,7 +23,7 @@ export default async function handler(req, res) {
         } catch (err) {
             // Continue without user context
             if (process.env.NODE_ENV === 'development') {
-                // console.log('JWT verification failed:', err.message);
+                console.log('JWT verification failed:', err.message);
             }
         }
     }

@@ -60,13 +60,13 @@ const CourseTemplatesPage = ({ user }) => {
                     pricing: { egypt: 300, international: 60, currency: 'EGP' },
                     daily_content_template: []
                 });
-                console.warn('تم إنشاء القالب بنجاح!');
+                alert('تم إنشاء القالب بنجاح!');
             } else {
                 const result = await response.json();
-                console.warn('خطأ: ' + result.message);
+                alert('خطأ: ' + result.message);
             }
         } catch (err) {
-            console.warn('حدث خطأ في الاتصال بالخادم');
+            alert('حدث خطأ في الاتصال بالخادم');
         }
     };
 

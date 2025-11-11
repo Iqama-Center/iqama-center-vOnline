@@ -30,9 +30,9 @@ const TranslateCoursesPage = ({ user }) => {
   };
 
   const translateCourses = async () => {
-    // if (!window.confirm('هل أنت متأكد من ترجمة جميع تفاصيل الدورات؟')) {
-    //   return;
-    // }
+    if (!window.confirm('هل أنت متأكد من ترجمة جميع تفاصيل الدورات؟')) {
+      return;
+    }
 
     setLoading(true);
     try {

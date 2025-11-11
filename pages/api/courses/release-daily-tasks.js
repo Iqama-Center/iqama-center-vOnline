@@ -71,7 +71,7 @@ export default async function handler(req, res) {
                         totalTasksReleased += tasksReleased;
                         coursesProcessed++;
                         
-                        // console.log(`Released ${tasksReleased} tasks for course ${course.name}, day ${currentDay}`);
+                        console.log(`Released ${tasksReleased} tasks for course ${course.name}, day ${currentDay}`);
                     }
                 }
             }

@@ -963,12 +963,12 @@ const ExamBuilder = ({ examContent, onChange }) => {
                 setQuestions(formattedQuestions);
                 onChange({...examContent, questions: formattedQuestions});
                 setJsonImport('');
-                console.warn('✅ تم استيراد الأسئلة بنجاح');
+                alert('✅ تم استيراد الأسئلة بنجاح');
             } else {
-                console.warn('❌ تنسيق JSON غير صحيح - يجب أن يكون مصفوفة من الأسئلة');
+                alert('❌ تنسيق JSON غير صحيح - يجب أن يكون مصفوفة من الأسئلة');
             }
         } catch (error) {
-            console.warn('❌ خطأ في تنسيق JSON: ' + error.message);
+            alert('❌ خطأ في تنسيق JSON: ' + error.message);
         }
     };
 
@@ -1984,7 +1984,7 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
 export const getServerSideProps = withAuth(async (context) => {
     const { id } = context.params;
     
-    // console.log('Schedule page - received id:', id);
+    console.log('Schedule page - received id:', id);
     
     // Validate that id is a valid number
     if (!id || id === 'undefined' || id === 'null' || isNaN(parseInt(id))) {

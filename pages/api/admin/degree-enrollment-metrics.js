@@ -15,7 +15,7 @@ export default async function handler(req, res) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        // console.log('🔍 Fetching degree enrollment metrics...');
+        console.log('🔍 Fetching degree enrollment metrics...');
         
         // Get degree enrollment metrics
         const degreeMetrics = await pool.query(`

@@ -344,7 +344,7 @@ const EditUserModal = ({ user, isOpen, onClose, onSave, onPromote }) => {
     };
     
     const handlePromote = async () => {
-        // if (!confirm(`هل أنت متأكد من ترقية هذا المستخدم إلى دور "${promoteRole}"؟`)) return;
+        if (!confirm(`هل أنت متأكد من ترقية هذا المستخدم إلى دور "${promoteRole}"؟`)) return;
         const result = await onPromote(user.id, promoteRole);
         setMessage(result);
     };

@@ -18,30 +18,30 @@ const AdminRequestsPage = ({ user, requests: initialRequests }) => {
     };
 
     const handleApprove = async (id) => {
-        // if (!confirm('هل أنت متأكد من الموافقة على هذا الطلب؟')) return;
+        if (!confirm('هل أنت متأكد من الموافقة على هذا الطلب؟')) return;
         const response = await fetch(`/api/requests/${id}/approve`, { method: 'POST' });
         if (response.ok) {
-            console.warn('تمت الموافقة على الطلب.');
+            alert('تمت الموافقة على الطلب.');
             router.replace(router.asPath);
         } else {
             const result = await response.json();
-            console.warn(result.message || 'حدث خطأ.');
+            alert(result.message || 'حدث خطأ.');
         }
     };
 
     const handleReject = async (id) => {
-        // if (!confirm('هل أنت متأكد من رفض هذا الطلب؟')) return;
+        if (!confirm('هل أنت متأكد من رفض هذا الطلب؟')) return;
         try {
             const response = await fetch(`/api/requests/${id}/reject`, { method: 'POST' });
             if (response.ok) {
-                console.warn('تم رفض الطلب بنجاح.');
+                alert('تم رفض الطلب بنجاح.');
                 router.replace(router.asPath);
             } else {
                 const result = await response.json();
-                console.warn(result.error || 'حدث خطأ أثناء الرفض.');
+                alert(result.error || 'حدث خطأ أثناء الرفض.');
             }
         } catch (err) {
-            console.warn('حدث خطأ في الاتصال بالخادم.');
+            alert('حدث خطأ في الاتصال بالخادم.');
         }
     };
 

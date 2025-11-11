@@ -294,7 +294,7 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
             });
             return;
         }
-
+        
         try {
             const response = await fetch('/api/courses/create', {
                 method: 'POST',

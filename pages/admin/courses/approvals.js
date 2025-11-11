@@ -11,7 +11,7 @@ const CourseApprovalPage = ({ user, courses: initialCourses }) => {
 
     const handleApproval = async (courseId, newStatus) => {
         const action = newStatus === 'approved' ? 'الموافقة على' : 'رفض';
-        // if (!confirm(`هل أنت متأكد من ${action} هذه الدورة؟`)) return;
+        if (!confirm(`هل أنت متأكد من ${action} هذه الدورة؟`)) return;
 
         try {
             const response = await fetch(`/api/courses/${courseId}/approve`, {
@@ -25,10 +25,10 @@ const CourseApprovalPage = ({ user, courses: initialCourses }) => {
                 router.replace(router.asPath); // Refresh data
             } else {
                 const result = await response.json();
-                console.warn(`خطأ: ${result.message}`);
+                alert(`خطأ: ${result.message}`);
             }
         } catch (err) {
-            console.warn('حدث خطأ في الاتصال بالخادم.');
+            alert('حدث خطأ في الاتصال بالخادم.');
         }
     };
 
