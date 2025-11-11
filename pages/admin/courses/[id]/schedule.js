@@ -963,12 +963,12 @@ const ExamBuilder = ({ examContent, onChange }) => {
                 setQuestions(formattedQuestions);
                 onChange({...examContent, questions: formattedQuestions});
                 setJsonImport('');
-                alert('✅ تم استيراد الأسئلة بنجاح');
+                console.warn('✅ تم استيراد الأسئلة بنجاح');
             } else {
-                alert('❌ تنسيق JSON غير صحيح - يجب أن يكون مصفوفة من الأسئلة');
+                console.warn('❌ تنسيق JSON غير صحيح - يجب أن يكون مصفوفة من الأسئلة');
             }
         } catch (error) {
-            alert('❌ خطأ في تنسيق JSON: ' + error.message);
+            console.warn('❌ خطأ في تنسيق JSON: ' + error.message);
         }
     };
 
@@ -1358,7 +1358,7 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
     };
 
     const launchCourse = async () => {
-        if (confirm('هل أنت متأكد من بدء انطلاق الدورة؟ لن يمكن التراجع عن هذا الإجراء.')) {
+        // if (confirm('هل أنت متأكد من بدء انطلاق الدورة؟ لن يمكن التراجع عن هذا الإجراء.')) {
             try {
                 const response = await fetch(`/api/courses/${course.id}/launch`, {
                     method: 'POST',
@@ -1373,11 +1373,11 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
             } catch (err) {
                 setMessage('🚫 خطأ في الاتصال بالخادم');
             }
-        }
+        // }
     };
 
     const saveAllChanges = async () => {
-        if (confirm('هل تريد حفظ جميع التغييرات في كل الأيام؟')) {
+        // if (confirm('هل تريد حفظ جميع التغييرات في كل الأيام؟')) {
             try {
                 setMessage('⏳ جاري حفظ جميع التغييرات...');
                 
@@ -1397,7 +1397,7 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
             } catch (err) {
                 setMessage(`🚫 خطأ في حفظ التغييرات: ${err.message}`);
             }
-        }
+        // }
     };
 
     return (
@@ -1984,7 +1984,7 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
 export const getServerSideProps = withAuth(async (context) => {
     const { id } = context.params;
     
-    console.log('Schedule page - received id:', id);
+    // console.log('Schedule page - received id:', id);
     
     // Validate that id is a valid number
     if (!id || id === 'undefined' || id === 'null' || isNaN(parseInt(id))) {

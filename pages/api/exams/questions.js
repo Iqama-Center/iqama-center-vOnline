@@ -62,9 +62,9 @@ export default async function handler(req, res) {
             }
 
             // Debug log
-            console.log('Creating question with data:', {
-                examId, questionText, questionType, options, correctAnswer, points, questionOrder
-            });
+            // console.log('Creating question with data:', {
+            //     examId, questionText, questionType, options, correctAnswer, points, questionOrder
+            // });
 
             // Verify exam access
             const examCheck = await pool.query(`

@@ -154,7 +154,7 @@ export default async function handler(req, res) {
 
             await client.query(
                 `INSERT INTO payments (enrollment_id, amount, currency, due_date, status, notes) 
-                 VALUES ($1, $2, $3, $4, 'due', $5)`,
+                 VALUES ($1, $2, a$3, $4, 'due', $5)`,
                 [enrollment.rows[0].id, amount, currency, dueDate, paymentNotes]
             );
 
@@ -213,49 +213,5 @@ export default async function handler(req, res) {
         errorHandler(err, res);
     } finally {
         client.release();
-    }
-}"SELECT id FROM users WHERE role IN ('admin', 'head') OR reports_to IS NULL"
-        );
-
-        for (const supervisor of supervisors.rows) {
-            await pool.query(
-                `INSERT INTO notifications (user_id, type, message, link, created_at) 
-                 VALUES ($1, 'announcement', $2, $3, CURRENT_TIMESTAMP)`,
-                [
-                    supervisor.id,
-                    `تسجيل جديد: ${user.full_name} في دورة ${course.name}`,
-                    `/admin/courses/${courseId}`
-                ]
-            );
-        }
-
-        // Determine success message based on financial configuration
-        let successMessage;
-        if (enrollmentStatus === 'pending_payment') {
-            if (financialConfig && financialConfig.type === 'pay') {
-                successMessage = `تم التسجيل بنجاح! يرجى دفع رسوم ${financialConfig.amount} ${financialConfig.currency} خلال 7 أيام لتأكيد التسجيل`;
-            } else {
-                successMessage = 'تم التسجيل بنجاح! يرجى دفع الرسوم خلال 7 أيام لتأكيد التسجيل';
-            }
-        } else if (financialConfig && financialConfig.type === 'receive') {
-            successMessage = `تم التسجيل بنجاح! ستحصل على مكافأة قدرها ${financialConfig.amount} ${financialConfig.currency} عند بدء الدورة`;
-        } else {
-            successMessage = 'تم التسجيل بنجاح في الدورة';
-        }
-
-        res.status(201).json({
-            message: successMessage,
-            enrollment: enrollment.rows[0],
-            financialInfo: financialConfig ? {
-                type: financialConfig.type,
-                amount: financialConfig.amount,
-                currency: financialConfig.currency,
-                timing: financialConfig.timing
-            } : null
-        });
-
-    } catch (err) {
-        console.error('Course application error:', err);
-        errorHandler(err, res);
     }
 }

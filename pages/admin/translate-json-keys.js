@@ -31,9 +31,9 @@ const TranslateJsonKeysPage = ({ user }) => {
   };
 
   const translateKeys = async () => {
-    if (!window.confirm('هل أنت متأكد من ترجمة مفاتيح JSON في جميع الدورات؟ هذا الإجراء لا يمكن التراجع عنه.')) {
-      return;
-    }
+    // if (!window.confirm('هل أنت متأكد من ترجمة مفاتيح JSON في جميع الدورات؟ هذا الإجراء لا يمكن التراجع عنه.')) {
+    //   return;
+    // }
 
     setLoading(true);
     try {

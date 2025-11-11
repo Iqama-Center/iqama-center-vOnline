@@ -231,7 +231,7 @@ const ExamQuestionManager = ({ examId, onQuestionsUpdated }) => {
 
         try {
             for (const [questionId, changes] of Object.entries(editedQuestions)) {
-                const originalQuestion = questions.find(q => q.id == questionId);
+                const originalQuestion = questions.find(q => q.id === questionId);
                 if (!originalQuestion) continue;
 
                 const updatedData = {

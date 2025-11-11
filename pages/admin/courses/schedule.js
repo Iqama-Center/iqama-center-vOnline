@@ -23,12 +23,12 @@ const CourseSchedulePage = ({ user }) => {
                 const data = await response.json();
                 setCourse(data);
             } else {
-                alert('خطأ في تحميل بيانات الدورة');
+                console.warn('خطأ في تحميل بيانات الدورة');
                 router.push('/admin/courses/manage');
             }
         } catch (error) {
             console.error('Error fetching course:', error);
-            alert('خطأ في تحميل بيانات الدورة');
+            console.warn('خطأ في تحميل بيانات الدورة');
             router.push('/admin/courses/manage');
         } finally {
             setLoading(false);
@@ -36,7 +36,7 @@ const CourseSchedulePage = ({ user }) => {
     }, [id, router]);
 
     const handleScheduleUpdate = (schedule) => {
-        console.log('Schedule updated:', schedule);
+        // console.log('Schedule updated:', schedule);
     };
 
     if (loading) {

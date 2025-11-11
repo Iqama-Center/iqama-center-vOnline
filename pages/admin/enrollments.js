@@ -29,9 +29,9 @@ const EnrollmentApprovalsPage = ({ user }) => {
 
     const handleApproval = async (enrollmentId, action) => {
         const actionText = action === 'approve' ? 'الموافقة على' : 'رفض';
-        if (!window.confirm(`هل أنت متأكد من ${actionText} هذا التسجيل؟`)) {
-            return;
-        }
+        // if (!window.confirm(`هل أنت متأكد من ${actionText} هذا التسجيل؟`)) {
+        //     return;
+        // }
 
         try {
             const response = await fetch('/api/admin/enrollments/approve', {
@@ -54,9 +54,9 @@ const EnrollmentApprovalsPage = ({ user }) => {
     };
 
     const handleFixStatus = async (enrollmentId) => {
-        if (!window.confirm('هل أنت متأكد من أنك تريد تفعيل هذا التسجيل يدويًا؟ سيتم تغيير حالة الطالب إلى نشط.')) {
-            return;
-        }
+        // if (!window.confirm('هل أنت متأكد من أنك تريد تفعيل هذا التسجيل يدويًا؟ سيتم تغيير حالة الطالب إلى نشط.')) {
+        //     return;
+        // }
 
         try {
             const response = await fetch(`/api/admin/enrollments/${enrollmentId}/fix-status`, {

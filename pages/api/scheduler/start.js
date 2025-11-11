@@ -13,7 +13,7 @@ export default async function handler(req, res) {
             scheduler.start();
             isSchedulerStarted = true;
             
-            console.log('🚀 Internal scheduler started via API');
+            // console.log('🚀 Internal scheduler started via API');
             
             res.status(200).json({
                 success: true,
@@ -46,7 +46,7 @@ if (typeof window === 'undefined' && !isSchedulerStarted) {
     try {
         scheduler.start();
         isSchedulerStarted = true;
-        console.log('🚀 Internal scheduler auto-started on server startup');
+        // console.log('🚀 Internal scheduler auto-started on server startup');
     } catch (error) {
         console.error('❌ Error auto-starting scheduler:', error);
     }

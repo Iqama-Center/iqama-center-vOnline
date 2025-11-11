@@ -317,32 +317,6 @@ const CourseCreationForm = ({ onSubmit, onCancel }) => {
                     text: result.message || 'حدث خطأ في إنشاء الدورة',
                     type: 'error'
                 });
-            });
-            return;
-        }
-
-        try {
-            const response = await fetch('/api/courses/create', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(formData),
-            });
-
-            const result = await response.json();
-
-            if (response.ok) {
-                setMessage({
-                    text: 'تم إنشاء الدورة بنجاح!',
-                    type: 'success'
-                });
-                onSubmit(result);
-            } else {
-                setMessage({
-                    text: result.message || 'حدث خطأ في إنشاء الدورة',
-                    type: 'error'
-                });
             }
         } catch (error) {
             console.error('Error creating course:', error);

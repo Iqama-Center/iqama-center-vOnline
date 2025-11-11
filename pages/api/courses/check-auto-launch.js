@@ -65,7 +65,7 @@ export default async function handler(req, res) {
                         participants: participantsCount
                     });
 
-                    console.log(`Auto-launched course: ${course.name} with ${participantsCount} participants`);
+                    // console.log(`Auto-launched course: ${course.name} with ${participantsCount} participants`);
                 } catch (launchError) {
                     await client.query('ROLLBACK');
                     console.error(`Failed to launch course ${course.name} (ID: ${course.id}). Error:`, launchError);

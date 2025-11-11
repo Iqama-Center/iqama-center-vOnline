@@ -32,12 +32,12 @@ function MyApp({ Component, pageProps }) {
       .then(res => res.json())
       .then(data => {
         if (data.success) {
-          console.log('Course automation scheduler is running');
-          console.log('Features active:', data.features || [
-            'Daily task release',
-            'Performance evaluation', 
-            'Auto-launch checking'
-          ]);
+          // console.log('Course automation scheduler is running');
+          // console.log('Features active:', data.features || [
+          //   'Daily task release',
+          //   'Performance evaluation', 
+          //   'Auto-launch checking'
+          // ]);
         }
       })
       .catch(err => {

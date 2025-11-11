@@ -23,7 +23,7 @@ export default withAuth(async (req, res) => {
 async function handleGet(req, res, user) {
     const { courseId, userId, dayNumber } = req.query;
 
-    if (userId && userId != user.id && !['admin', 'head', 'teacher'].includes(user.role)) {
+    if (userId && userId !== user.id && !['admin', 'head', 'teacher'].includes(user.role)) {
         return res.status(403).json({ message: 'Not authorized to view these tasks' });
     }
     const targetUserId = userId || user.id;

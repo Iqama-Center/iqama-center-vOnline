@@ -15,7 +15,7 @@ export default async function handler(req, res) {
             return res.status(403).json({ message: 'Not authorized' });
         }
 
-        console.log('🔍 Fetching degree enrollment metrics...');
+        // console.log('🔍 Fetching degree enrollment metrics...');
         
         // Get degree enrollment metrics
         const degreeMetrics = await pool.query(`
@@ -90,11 +90,11 @@ export default async function handler(req, res) {
             ORDER BY week_start DESC, e.level_number
         `);
 
-        console.log('📊 Degree metrics results:', {
-            courseMetrics: degreeMetrics.rows.length,
-            overallStats: overallStats.rows[0],
-            enrollmentTrends: enrollmentTrends.rows.length
-        });
+        // console.log('📊 Degree metrics results:', {
+        //     courseMetrics: degreeMetrics.rows.length,
+        //     overallStats: overallStats.rows[0],
+        //     enrollmentTrends: enrollmentTrends.rows.length
+        // });
 
         res.status(200).json({
             success: true,
