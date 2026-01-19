@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
-const TaskGenerationStep = ({ course, onTaskConfigChange, taskConfig = {} }) => {
-    const [enableTaskGeneration, setEnableTaskGeneration] = useState(false);
+const TaskGenerationStep = ({ course, onTaskConfigChange, taskConfig = {}, compact = false }) => {
+    const [enableTaskGeneration, setEnableTaskGeneration] = useState(!!taskConfig.enabled);
     const [selectedLevels, setSelectedLevels] = useState({});
     const [customTasks, setCustomTasks] = useState({});
 
@@ -17,8 +17,11 @@ const TaskGenerationStep = ({ course, onTaskConfigChange, taskConfig = {} }) => 
                 initialTasks[levelKey] = [];
             });
             
-            setSelectedLevels(initialLevels);
-            setCustomTasks(initialTasks);
+            // If taskConfig has data, initialize from it
+            const initLevels = taskConfig.levels && Object.keys(taskConfig.levels).length ? taskConfig.levels : initialLevels;
+            const initTasks = taskConfig.customTasks && Object.keys(taskConfig.customTasks).length ? taskConfig.customTasks : initialTasks;
+            setSelectedLevels(initLevels);
+            setCustomTasks(initTasks);
         }
     }, [course.participant_config]);
 
@@ -131,6 +134,28 @@ const TaskGenerationStep = ({ course, onTaskConfigChange, taskConfig = {} }) => 
 
         return defaultTasks;
     };
+
+    // Compact mode: render a concise UI (checkbox + per-level toggles)
+    if (compact) {
+        return (
+            <div className="task-generation-compact" style={{ padding: '12px 0' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={enableTaskGeneration} onChange={(e) => handleEnableTaskGeneration(e.target.checked)} />
+                    🚀 تفعيل إنشاء المهام التلقائية
+                </label>
+                {enableTaskGeneration && course.participant_config && (
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
+                        {Object.entries(course.participant_config).map(([levelKey, cfg]) => (
+                            <label key={levelKey} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                                <input type="checkbox" checked={selectedLevels[levelKey] || false} onChange={(e) => handleLevelToggle(levelKey, e.target.checked)} />
+                                <span style={{ fontSize: '0.95rem' }}>{cfg.name}</span>
+                            </label>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="task-generation-step">

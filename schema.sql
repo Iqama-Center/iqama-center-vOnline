@@ -10,7 +10,8 @@ CREATE TYPE public.user_account_status AS ENUM ('pending_verification', 'active'
 CREATE TYPE public.course_status AS ENUM ('draft', 'published', 'active', 'archived');
 CREATE TYPE public.enrollment_status AS ENUM ('pending_payment', 'waiting_start', 'active', 'completed', 'cancelled', 'pending_approval');
 CREATE TYPE public.payment_status AS ENUM ('due', 'paid', 'late', 'waived', 'pending_review', 'pending_payout');
-CREATE TYPE public.task_type AS ENUM ('homework', 'exam', 'reading', 'review', 'evaluation', 'submission', 'grade_item', 'daily_reading', 'daily_quiz', 'daily_wird', 'daily_evaluation', 'daily_monitoring', 'attendance_record', 'lesson_preparation', 'grading', 'performance_review', 'communication_followup', 'custom_daily', 'custom_fixed', 'project', 'preparation', 'weekly_report', 'weekly_evaluation');
+CREATE TYPE public.task_type AS ENUM ('homework', 'exam', 'reading', 'review', 'evaluation', 'submission', 'grade_item', 'daily_reading', 'daily_quiz', 'daily_wird', 'daily_evaluation', 'daily_monitoring', 'attendance_record', 'lesson_preparation', 'grading', 'performance_review', 'communication_followup', 'custom_daily', 'custom_fixed', 'project', 'preparation', 'weekly_report', 'weekly_evaluation', 'automatic');
+CREATE TYPE public.task_status AS ENUM ('scheduled', 'active', 'completed', 'overdue', 'cancelled');
 CREATE TYPE public.task_priority AS ENUM ('low', 'medium', 'high');
 CREATE TYPE public.task_category_enum AS ENUM ('daily', 'fixed');
 CREATE TYPE public.submission_status AS ENUM ('pending', 'submitted', 'graded', 'late');
@@ -62,6 +63,7 @@ CREATE TABLE public.course_templates (
     created_by INTEGER NOT NULL REFERENCES public.users(id),
     is_active BOOLEAN DEFAULT true,
     participant_config JSONB DEFAULT '{}'::jsonb,
+    task_generation_config JSONB DEFAULT '{}'::jsonb,
     auto_fill_template JSONB DEFAULT '{}'::jsonb,
     launch_settings JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
@@ -1106,3 +1108,126 @@ BEGIN
     RETURN v_gradebook_data;
 END;
 $function$ LANGUAGE plpgsql;
+
+-- -------------------------------------------------------------
+-- Automated Performance Monitoring System (Added: 2025-11-13)
+-- This system tracks user performance based on automated events.
+-- -------------------------------------------------------------
+
+-- A new type to identify what entity a performance log entry relates to.
+CREATE TYPE public.performance_metric_entity_type AS ENUM (
+    'course',
+    'assignment',
+    'submission',
+    'payment',
+    'user_request',
+    'report',
+    'attendance_record',
+    'task'
+);
+
+-- Table for defining the automated metrics that the system will monitor.
+CREATE TABLE public.performance_metrics (
+    id SERIAL PRIMARY KEY,
+    metric_key VARCHAR(100) NOT NULL UNIQUE,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    target_role public.user_role NOT NULL,
+    -- Points to add/deduct. Positive for good actions, negative for missed ones.
+    points_impact NUMERIC(5, 2) NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX ON public.performance_metrics (target_role);
+CREATE INDEX ON public.performance_metrics (is_active);
+
+-- Table for logging every single performance change.
+CREATE TABLE public.user_performance_log (
+    id BIGSERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    metric_id INTEGER NOT NULL REFERENCES public.performance_metrics(id) ON DELETE CASCADE,
+    related_entity_type public.performance_metric_entity_type,
+    related_entity_id INTEGER,
+    score_change NUMERIC(5, 2) NOT NULL,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX ON public.user_performance_log (user_id);
+CREATE INDEX ON public.user_performance_log (metric_id);
+CREATE INDEX ON public.user_performance_log (related_entity_type, related_entity_id);
+
+-- Table for storing the current, aggregated performance score for each user.
+CREATE TABLE public.user_overall_performance (
+    user_id INTEGER PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+    overall_score NUMERIC(10, 2) DEFAULT 100.00 NOT NULL,
+    score_history JSONB DEFAULT '[]'::jsonb,
+    last_updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX ON public.user_overall_performance (overall_score);
+
+-- A function to simplify applying performance changes and updating the aggregate score.
+CREATE OR REPLACE FUNCTION apply_performance_change(
+    p_user_id INT,
+    p_metric_key VARCHAR(100),
+    p_related_entity_type public.performance_metric_entity_type,
+    p_related_entity_id INT,
+    p_notes TEXT
+)
+RETURNS void AS $function$
+DECLARE
+    v_metric RECORD;
+BEGIN
+    -- Find the metric from the key
+    SELECT * INTO v_metric FROM public.performance_metrics WHERE metric_key = p_metric_key AND is_active = true;
+
+    IF v_metric IS NULL THEN
+        RAISE NOTICE 'Performance metric with key % not found or is inactive.', p_metric_key;
+        RETURN;
+    END IF;
+
+    -- Insert into the log
+    INSERT INTO public.user_performance_log (user_id, metric_id, score_change, related_entity_type, related_entity_id, notes)
+    VALUES (p_user_id, v_metric.id, v_metric.points_impact, p_related_entity_type, p_related_entity_id, p_notes);
+
+    -- Initialize performance record if it doesn't exist
+    INSERT INTO public.user_overall_performance (user_id, overall_score, last_updated)
+    VALUES (p_user_id, 100.00, CURRENT_TIMESTAMP)
+    ON CONFLICT (user_id) DO NOTHING;
+
+    -- Update the overall score and history
+    UPDATE public.user_overall_performance
+    SET
+        overall_score = overall_score + v_metric.points_impact,
+        last_updated = CURRENT_TIMESTAMP,
+        score_history = score_history || jsonb_build_object(
+            'timestamp', CURRENT_TIMESTAMP,
+            'change', v_metric.points_impact,
+            'metric', p_metric_key,
+            'notes', p_notes
+        )
+    WHERE user_id = p_user_id;
+
+END;
+$function$ LANGUAGE plpgsql;
+
+-- Insert some initial metric definitions for the system to use.
+INSERT INTO public.performance_metrics (metric_key, name, description, target_role, points_impact) VALUES
+('TEACHER_GRADES_ON_TIME', 'Teacher Grades Submission On Time', 'Teacher submits grading for an assignment before the deadline.', 'teacher', 5.00),
+('TEACHER_GRADES_LATE', 'Teacher Grades Submission Late', 'Teacher submits grading for an assignment after the deadline.', 'teacher', -10.00),
+('TEACHER_MISSES_SCHEDULED_MEETING', 'Teacher Misses Scheduled Meeting', 'Teacher fails to attend a scheduled course meeting without prior notice.', 'teacher', -20.00),
+('WORKER_SUBMITS_REPORT_ON_TIME', 'Worker Submits Report On Time', 'Worker submits a required report by its due date.', 'worker', 5.00),
+('WORKER_SUBMITS_REPORT_LATE', 'Worker Submits Report Late', 'Worker submits a required report after its due date.', 'worker', -5.00),
+('STUDENT_SUBMITS_ON_TIME', 'Student Submits Assignment On Time', 'Student submits an assignment before the due date.', 'student', 2.00),
+('STUDENT_SUBMITS_LATE', 'Student Submits Assignment Late', 'Student submits an assignment after the due date.', 'student', -2.00)
+ON CONFLICT (metric_key) DO NOTHING;
+
+-- Add columns to tasks table for integration with the monitoring system
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS system_task_key VARCHAR(255);
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS related_entity_id INT;
+
+COMMENT ON COLUMN public.tasks.system_task_key IS 'If not NULL, this task is monitored by the automated system. The key links to a process, e.g., ''GRADE_ASSIGNMENT_123''.';
+COMMENT ON COLUMN public.tasks.related_entity_id IS 'Reference to another entity relevant to the task, e.g., an assignment ID for a grading task.';
+
+-- Add a flag to the tasks table to prevent duplicate performance penalties
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS performance_impact_applied BOOLEAN DEFAULT false;
+COMMENT ON COLUMN public.tasks.performance_impact_applied IS 'Flag to indicate if a performance penalty for being overdue has been applied.';

@@ -35,7 +35,8 @@ export default async function handler(req, res) {
                     participant_config,
                     auto_launch_settings,
                     course_fee,
-                    max_enrollment
+                    max_enrollment,
+                    task_generation_config
                 } = req.body;
         
                 if (!name || name.trim() === '') {
@@ -67,9 +68,10 @@ export default async function handler(req, res) {
                             details = $8,
                             participant_config = $9,
                             auto_launch_settings = $10,
+                            task_generation_config = $11,
                             course_fee = $12,
                             max_enrollment = $13
-                        WHERE id = $11 
+                        WHERE id = $14 
                         RETURNING *`, 
                         [
                             name, 
@@ -82,9 +84,10 @@ export default async function handler(req, res) {
                             details || {},
                             participant_config || {},
                             auto_launch_settings || {},
-                            id,
+                            JSON.stringify(task_generation_config || {}),
                             final_course_fee,
-                            final_max_enrollment
+                            final_max_enrollment,
+                            id
                         ]
                     );            
             if (result.rows.length === 0) {

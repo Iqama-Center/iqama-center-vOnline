@@ -398,6 +398,13 @@ a:hover {
     padding: 0;
 }
 
+/* Floating navigation used by CourseForm */
+.floating-nav { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 12px; align-items: center; z-index: 9999; pointer-events: auto; }
+.floating-nav .btn { padding: 10px 18px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+.floating-nav .btn-primary { box-shadow: 0 10px 30px rgba(59,130,246,0.14); }
+.floating-nav .btn-secondary { box-shadow: 0 10px 30px rgba(107,114,128,0.08); }
+@media (max-width: 480px) { .floating-nav { left: auto; right: 12px; transform: none; flex-direction: column-reverse; bottom: 18px; } .floating-nav .btn { padding: 12px 14px; } }
+
 body {
     font-family: var(--font-tajawal), sans-serif; /* استخدم المتغير الجديد */
     background-color: var(--light-color);

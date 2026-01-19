@@ -66,12 +66,14 @@ export default withAuth(async (req, res) => {
         // --- Unified Logic Start ---
         await client.query('BEGIN');
 
+        const task_generation_config = req.body.task_generation_config || {};
         const courseResult = await client.query(`
-            INSERT INTO courses (name, description, content_outline, duration_days, start_date, days_per_week, hours_per_day, created_by, details, participant_config, auto_launch_settings, status)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft') RETURNING id`, [
+            INSERT INTO courses (name, description, content_outline, duration_days, start_date, days_per_week, hours_per_day, created_by, details, participant_config, auto_launch_settings, status, task_generation_config)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12) RETURNING id`, [
                 courseData.name, courseData.description, courseData.content_outline, courseData.duration_days, courseData.start_date,
                 courseData.days_per_week, courseData.hours_per_day, user.id, courseData.details, 
-                courseData.participant_config, courseData.auto_launch_settings
+                courseData.participant_config, courseData.auto_launch_settings,
+                JSON.stringify(task_generation_config || {})
             ]
         );
         const courseId = courseResult.rows[0].id;

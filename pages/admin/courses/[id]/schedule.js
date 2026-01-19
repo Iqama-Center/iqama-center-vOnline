@@ -4,6 +4,7 @@ import { withAuth } from '../../../../lib/withAuth';
 import pool from '../../../../lib/db';
 import { serializeDbRow, serializeDbRows, safeProps } from '../../../../lib/serializer';
 import ExamQuestionManager from '../../../../components/ExamQuestionManager';
+import TaskGenerationStep from '../../../../components/TaskGenerationStep';
 
 // مكون لإدارة يوم دراسي واحد
 const DayScheduler = ({ day, onSave, onCreateExam }) => {
@@ -1213,6 +1214,7 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
         default_costs_level_2: 'إعداد المحتوى وتقييم الطلاب',
         default_costs_level_3: 'حل الامتحان وأداء الواجبات'
     });
+    const [taskGenConfig, setTaskGenConfig] = useState({ enabled: false, levels: {}, customTasks: {} });
 
     const handleSaveDay = async (dayDetails) => {
         try {
@@ -1240,7 +1242,7 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
     };
 
     const handleAutoFill = () => {
-        const updatedSchedule = schedule.map(day => {
+            const updatedSchedule = schedule.map(day => {
             const dayNumber = day.day_number;
             const paddedNumber = dayNumber.toString().padStart(2, '0');
             
@@ -1266,6 +1268,33 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
                 }))
                 : [];
             
+            // Build task generation payload if enabled
+            const buildTaskGenForDay = () => {
+                if (!taskGenConfig || !taskGenConfig.enabled) return undefined;
+
+                const parseDefaultTasks = (text) => text ? text.split('\n').filter(t => t.trim()).map((t, idx) => ({
+                    id: `auto_${dayNumber}_${idx}`,
+                    type: 'auto_text',
+                    category: 'daily',
+                    title: t.trim(),
+                    description: t.trim()
+                })) : [];
+
+                return {
+                    enabled: true,
+                    levels: taskGenConfig.levels || {},
+                    customTasks: taskGenConfig.customTasks || {},
+                    // include defaults from autoFillTemplate
+                    defaults: {
+                        level_1: parseDefaultTasks(autoFillTemplate.default_costs_level_1),
+                        level_2: parseDefaultTasks(autoFillTemplate.default_costs_level_2),
+                        level_3: parseDefaultTasks(autoFillTemplate.default_costs_level_3)
+                    }
+                };
+            };
+
+            const taskGenForDay = buildTaskGenForDay();
+
             return {
                 ...day,
                 meeting_link: autoFillTemplate.meeting_link_template,
@@ -1281,6 +1310,8 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
                     title: autoFillTemplate.default_exam_title.replace(/\*\*/g, dayNumber),
                     time_limit: autoFillTemplate.default_exam_time
                 }
+                ,
+                task_generation_config: taskGenForDay
             };
         });
         
@@ -1317,6 +1348,8 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
                 auto_fill_template: autoFillTemplate,
                 launch_settings: course.auto_launch_settings || {}
             };
+            // include task generation config in saved template if provided
+            templateData.task_generation_config = taskGenConfig;
 
             const response = await fetch('/api/courses/templates', {
                 method: 'POST',
@@ -1865,46 +1898,101 @@ const CourseSchedulerPage = ({ user, course, schedule: initialSchedule }) => {
                             />
                         </div>
 
-                        <h4>💼 التكاليف الافتراضية للدرجات الثلاثة</h4>
+                                                <div className="form-group">
+
+                                                    <h4>🚀 إعداد المهام التلقائية واليومية</h4>
+
+                                                    <p style={{ color: '#6b7280', marginTop: '6px', marginBottom: '20px' }}>
+
+                                                        هنا يمكنك تكوين نوعين من المهام:
+
+                                                        <br />- <strong>المهام اليومية البسيطة:</strong> تظهر كقائمة مهام (Checklist) مباشرة في كل يوم دراسي.
+
+                                                        <br />- <strong>نظام المهام المتقدم:</strong> لتوليد مهام مفصلة عند إطلاق الدورة بناءً على قوالب.
+
+                                                    </p>
+
                         
-                        <div className="form-group">
-                            <label>🎯 تكاليف درجة 1 (المشرفين) - قائمة مهام</label>
-                            <textarea 
-                                value={autoFillTemplate.default_costs_level_1}
-                                onChange={e => setAutoFillTemplate({...autoFillTemplate, default_costs_level_1: e.target.value})}
-                                rows="3"
-                                placeholder="أدخل المهام مفصولة بأسطر جديدة، مثال:
-مراجعة التقارير
-متابعة الأداء
-تقييم النتائج"
-                            />
-                        </div>
 
-                        <div className="form-group">
-                            <label>👨‍🏫 تكاليف درجة 2 (المعلمين/المدربين) - قائمة مهام</label>
-                            <textarea 
-                                value={autoFillTemplate.default_costs_level_2}
-                                onChange={e => setAutoFillTemplate({...autoFillTemplate, default_costs_level_2: e.target.value})}
-                                rows="3"
-                                placeholder="أدخل المهام مفصولة بأسطر جديدة، مثال:
-تحضير المحتوى
-إعداد الأسئلة
-متابعة الطلاب"
-                            />
-                        </div>
+                                                    <div style={{border: '1px solid #ddd', borderRadius: '8px', padding: '15px', background: '#f9f9f9'}}>
 
-                        <div className="form-group">
-                            <label>🎓 تكاليف درجة 3 (الطلاب) - قائمة مهام</label>
-                            <textarea 
-                                value={autoFillTemplate.default_costs_level_3}
-                                onChange={e => setAutoFillTemplate({...autoFillTemplate, default_costs_level_3: e.target.value})}
-                                rows="3"
-                                placeholder="أدخل المهام مفصولة بأسطر جديدة، مثال:
-مراجعة المحتوى
-حل التمارين
-حضور اللقاء"
-                            />
-                        </div>
+                                                        <h5 style={{marginTop: '0', color: '#333'}}>📋 المهام اليومية البسيطة (للقوائم اليومية)</h5>
+
+                                                        <p style={{fontSize: '0.9em', color: '#555'}}>أدخل المهام مفصولة بأسطر جديدة. هذه المهام ستملأ قوائم المتابعة اليومية للطلاب والمعلمين والمشرفين.</p>
+
+                                                        
+
+                                                        <div className="form-group" style={{background: 'white', padding: '10px'}}>
+
+                                                            <label>🎯 للمشرفين (درجة 1)</label>
+
+                                                            <textarea 
+
+                                                                value={autoFillTemplate.default_costs_level_1}
+
+                                                                onChange={e => setAutoFillTemplate({...autoFillTemplate, default_costs_level_1: e.target.value})}
+
+                                                                rows="3"
+
+                                                                placeholder="مراجعة التقارير..."
+
+                                                            />
+
+                                                        </div>
+
+                        
+
+                                                        <div className="form-group" style={{background: 'white', padding: '10px'}}>
+
+                                                            <label>👨‍🏫 للمعلمين/المدربين (درجة 2)</label>
+
+                                                            <textarea 
+
+                                                                value={autoFillTemplate.default_costs_level_2}
+
+                                                                onChange={e => setAutoFillTemplate({...autoFillTemplate, default_costs_level_2: e.target.value})}
+
+                                                                rows="3"
+
+                                                                placeholder="تحضير المحتوى..."
+
+                                                            />
+
+                                                        </div>
+
+                        
+
+                                                        <div className="form-group" style={{background: 'white', padding: '10px'}}>
+
+                                                            <label>🎓 للطلاب (درجة 3)</label>
+
+                                                            <textarea 
+
+                                                                value={autoFillTemplate.default_costs_level_3}
+
+                                                                onChange={e => setAutoFillTemplate({...autoFillTemplate, default_costs_level_3: e.target.value})}
+
+                                                                rows="3"
+
+                                                                placeholder="مراجعة المحتوى..."
+
+                                                            />
+
+                                                        </div>
+
+                                                    </div>
+
+                        
+
+                                                    <div style={{border: '1px solid #ddd', borderRadius: '8px', padding: '15px', background: '#f9f9f9', marginTop: '20px'}}>
+
+                                                        <h5 style={{marginTop: '0', color: '#333'}}>⚙️ نظام المهام المتقدم</h5>
+
+                                                        <TaskGenerationStep course={course} onTaskConfigChange={(cfg) => setTaskGenConfig(cfg)} taskConfig={taskGenConfig} />
+
+                                                    </div>
+
+                                                </div>
 
                         <div className="modal-buttons" style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '25px' }}>
                             <button 

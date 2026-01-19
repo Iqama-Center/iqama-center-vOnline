@@ -21,7 +21,8 @@ export default async function handler(req, res) {
         const { 
             name, description, content_outline, duration_days, start_date, 
             schedule_config, hours_per_day, details, participant_config, 
-            auto_launch_settings, courseSchedule, taskGenerationEnabled, enhancedTaskConfig
+            auto_launch_settings, courseSchedule, taskGenerationEnabled, enhancedTaskConfig,
+            task_generation_config
         } = req.body;
 
         if (!name || !description) {
@@ -31,11 +32,11 @@ export default async function handler(req, res) {
         await client.query('BEGIN');
 
         const courseResult = await client.query(`
-            INSERT INTO courses (name, description, content_outline, duration_days, start_date, days_per_week, hours_per_day, created_by, details, participant_config, auto_launch_settings, status, schedule_config)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12) RETURNING *`, [
+            INSERT INTO courses (name, description, content_outline, duration_days, start_date, days_per_week, hours_per_day, created_by, details, participant_config, auto_launch_settings, status, task_generation_config, schedule_config)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12, $13) RETURNING *`, [
                 name, description, content_outline, duration_days, start_date, schedule_config ? Object.keys(schedule_config).length : 0, 
                 hours_per_day, decoded.id, JSON.stringify(details || {}), JSON.stringify(participant_config || {}), JSON.stringify(auto_launch_settings || {}),
-                schedule_config
+                JSON.stringify(task_generation_config || {}), schedule_config
             ]
         );
         const newCourse = courseResult.rows[0];

@@ -43,7 +43,8 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
         task_generation_config: {
             enabled: false,
             levels: {},
-            customTasks: {}
+            customTasks: {},
+            defaults: { level_1: '', level_2: '', level_3: '' }
         }
     });
 
@@ -107,7 +108,8 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 task_generation_config: parseJsonField(initialCourse.task_generation_config, {
                     enabled: false,
                     levels: {},
-                    customTasks: {}
+                    customTasks: {},
+                    defaults: { level_1: '', level_2: '', level_3: '' }
                 })
             });
         }
@@ -231,7 +233,8 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
             courseSchedule,
             days_per_week: Object.keys(course.schedule_config).length,
             task_generation_enabled: useTaskGeneration,
-            enhanced_task_config: useTaskGeneration ? course.task_generation_config.customTasks : {}
+            enhanced_task_config: useTaskGeneration ? course.task_generation_config.customTasks : {},
+            task_generation_config: course.task_generation_config
         };
 
         try {
@@ -317,7 +320,8 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
             }
         }
         
-        setCurrentStep(prev => Math.min(prev + 1, 4));
+        // Max step is 3 now (task generation moved to schedule auto-fill)
+        setCurrentStep(prev => Math.min(prev + 1, 3));
     };
     
     const prevStep = (e) => {
@@ -530,13 +534,32 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                     ))}
                 </div>
             </div>
+            {/* Task generation compact controls (defaults merged with costs) */}
+            <div style={{ background: 'white', padding: '20px', borderRadius: '12px', marginTop: '20px', border: '2px solid #e2e8f0' }}>
+                <h4 style={{ margin: '0 0 12px 0', fontSize: '1.1rem', fontWeight: 700 }}>🤖 إعداد المهام التلقائية (الملء الافتراضي)</h4>
+                <p style={{ margin: '6px 0 12px 0', color: '#64748b' }}>يمكنك تفعيل توليد المهام التلقائي وتحديد المستويات وتحرير التكاليف/المهام الافتراضية هنا. هذه الإعدادات تُحفَظ مع الدورة عند الإنشاء.</p>
+                <TaskGenerationStep course={course} compact={true} taskConfig={course.task_generation_config} onTaskConfigChange={(cfg) => setCourse(prev => ({ ...prev, task_generation_config: cfg }))} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginTop: '12px' }}>
+                    <div>
+                        <label style={{ fontWeight: 700, display: 'block', marginBottom: '6px' }}>🎯 تكاليف مستوى 1 (المشرف)</label>
+                        <textarea rows="2" value={course.task_generation_config?.defaults?.level_1 || ''} onChange={(e) => setCourse(prev => ({ ...prev, task_generation_config: { ...prev.task_generation_config, defaults: { ...prev.task_generation_config.defaults, level_1: e.target.value } } }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0' }} placeholder="أدخل المهام مفصولة بأسطر" />
+                    </div>
+                    <div>
+                        <label style={{ fontWeight: 700, display: 'block', marginBottom: '6px' }}>👨‍🏫 تكاليف مستوى 2 (المعلم)</label>
+                        <textarea rows="2" value={course.task_generation_config?.defaults?.level_2 || ''} onChange={(e) => setCourse(prev => ({ ...prev, task_generation_config: { ...prev.task_generation_config, defaults: { ...prev.task_generation_config.defaults, level_2: e.target.value } } }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0' }} placeholder="أدخل المهام مفصولة بأسطر" />
+                    </div>
+                    <div>
+                        <label style={{ fontWeight: 700, display: 'block', marginBottom: '6px' }}>🎓 تكاليف مستوى 3 (الطالب)</label>
+                        <textarea rows="2" value={course.task_generation_config?.defaults?.level_3 || ''} onChange={(e) => setCourse(prev => ({ ...prev, task_generation_config: { ...prev.task_generation_config, defaults: { ...prev.task_generation_config.defaults, level_3: e.target.value } } }))} style={{ width: '100%', padding: '8px', borderRadius: '8px', border: '1px solid #e2e8f0' }} placeholder="أدخل المهام مفصولة بأسطر" />
+                    </div>
+                </div>
+            </div>
             </div>
         </div>
     );
 
-    const renderStep4 = () => (
-        <TaskGenerationStep course={course} onTaskConfigChange={handleTaskConfigChange} taskConfig={course.task_generation_config} />
-    );
+    // Task generation step has been moved to the schedule auto-fill modal. No local renderStep4 here.
 
     return (
         <div className="course-form-container">
@@ -580,29 +603,31 @@ const CourseForm = ({ course: initialCourse, allUsers = [] }) => {
                 .btn-success { background: var(--success-color); color: white; }
                 .btn:hover { transform: translateY(-2px); }
                 .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+                /* Floating navigation styles moved to globals.css */
             `}</style>
             <div className="step-indicator">
                 <div className={`step ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>1. المعلومات الأساسية</div>
                 <div className={`step ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>2. تكوين المشاركين</div>
                 <div className={`step ${currentStep >= 3 ? 'active' : ''} ${currentStep > 3 ? 'completed' : ''}`}>3. إعدادات النشر</div>
-                <div className={`step ${currentStep >= 4 ? 'active' : ''}`}>4. إعداد المهام</div>
+                {/* removed step 4 - task generation moved to schedule auto-fill */}
             </div>
             <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target.type !== 'submit') { e.preventDefault(); e.stopPropagation(); } }} onMouseOver={(e) => e.stopPropagation()} onFocus={(e) => e.stopPropagation()}>
                 {currentStep === 1 && renderStep1()}
                 {currentStep === 2 && renderStep2()}
                 {currentStep === 3 && renderStep3()}
-                {currentStep === 4 && renderStep4()}
-                <div className="navigation-buttons">
-                    <button type="button" className="btn btn-secondary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); prevStep(e); }} onMouseEnter={(e) => e.stopPropagation()} disabled={currentStep === 1}>→ السابق</button>
-                    {currentStep < 4 ? (
-                        <button type="button" className="btn btn-primary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); nextStep(e); }} onMouseEnter={(e) => e.stopPropagation()}>التالي ←</button>
-                    ) : (
-                        <button type="submit" className="btn btn-success" onMouseEnter={(e) => e.stopPropagation()} onMouseLeave={(e) => e.stopPropagation()} onFocus={(e) => e.stopPropagation()} onClick={(e) => { console.log('Submit button clicked'); e.stopPropagation(); }}>
-                            {initialCourse ? '💾 تحديث الدورة والانتقال للجدولة' : '➕ إنشاء الدورة والانتقال للجدولة'}
-                        </button>
-                    )}
-                </div>
+                {/* Inline navigation removed — floating nav remains */}
             </form>
+            {/* Floating navigation so the prev/next controls are always reachable */}
+            <div className="floating-nav" role="navigation" aria-label="انتقال بين خطوات إنشاء الدورة">
+                <button type="button" aria-label="السابق" className="btn btn-secondary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); prevStep(e); }} disabled={currentStep === 1}>→ السابق</button>
+                {currentStep < 3 ? (
+                    <button type="button" aria-label="التالي" className="btn btn-primary" onClick={(e) => { e.preventDefault(); e.stopPropagation(); nextStep(e); }}>التالي ←</button>
+                ) : (
+                    <button type="button" aria-label="إنشاء أو تحديث الدورة" className="btn btn-success" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSubmit(e); }}>
+                        {initialCourse ? '💾 تحديث' : '➕ إنشاء'}
+                    </button>
+                )}
+            </div>
         </div>
     );
 };

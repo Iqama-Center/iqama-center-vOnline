@@ -44,10 +44,11 @@ export default async function handler(req, res) {
             pricing: pricing_override || templateData.pricing
         };
 
+        const task_generation_config = req.body.task_generation_config || {};
         const courseResult = await client.query(
-            `INSERT INTO courses (name, description, created_by, template_id, status, min_enrollment, max_enrollment, details) 
-             VALUES ($1, $2, $3, $4, 'pending_approval', $5, $6, $7) RETURNING id`,
-            [name, description || templateData.description, decoded.id, templateId, templateData.min_capacity, templateData.max_capacity, courseDetails]
+            `INSERT INTO courses (name, description, created_by, template_id, status, min_enrollment, max_enrollment, task_generation_config, details) 
+             VALUES ($1, $2, $3, $4, 'pending_approval', $5, $6, $7, $8) RETURNING id`,
+            [name, description || templateData.description, decoded.id, templateId, templateData.min_capacity, templateData.max_capacity, JSON.stringify(task_generation_config || {}), courseDetails]
         );
         const courseId = courseResult.rows[0].id;
 

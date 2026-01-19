@@ -39,13 +39,14 @@ export default async function handler(req, res) {
         
                 await client.query('BEGIN');
         
+                const task_generation_config = req.body.task_generation_config || {};
                 const courseResult = await client.query(`
                     INSERT INTO courses (
                         name, description, content_outline, duration_days, start_date, 
                         days_per_week, hours_per_day, created_by, details, 
                         participant_config, auto_launch_settings, status, course_fee, max_enrollment,
-                        schedule_config
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12, $13, $14) 
+                        task_generation_config, schedule_config
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'draft', $12, $13, $14, $15) 
                     RETURNING id`,[
                         name, description, content_outline, duration_days, start_date,
                         schedule_config ? Object.keys(schedule_config).length : 0, hours_per_day, decoded.id, 
@@ -54,6 +55,7 @@ export default async function handler(req, res) {
                         auto_launch_settings || {},
                         final_course_fee,
                         final_max_enrollment,
+                        JSON.stringify(task_generation_config || {}),
                         schedule_config
                     ]
                 );        const courseId = courseResult.rows[0].id;

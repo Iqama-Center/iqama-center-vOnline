@@ -2,6 +2,74 @@ import pool from '../../../lib/db';
 import jwt from 'jsonwebtoken';
 import errorHandler from '../../../lib/errorHandler';
 
+/**
+ * Evaluates overdue system-monitored tasks and applies performance penalties.
+ * This function is designed to be called by a scheduler.
+ * @param {object} client - The database client object.
+ */
+async function evaluateOverdueSystemTasks(client) {
+    console.log('Evaluating overdue system tasks for performance impact...');
+    
+    // Find overdue, un-penalized system tasks that are not yet completed.
+    // This targets tasks that have a system key, are past due, haven't been penalized,
+    // and do not have a corresponding submission.
+    const overdueTasksRes = await client.query(`
+        SELECT 
+            t.id, 
+            t.assigned_to, 
+            t.system_task_key,
+            t.title
+        FROM tasks t
+        LEFT JOIN submissions s ON t.id = s.task_id AND t.assigned_to = s.user_id
+        WHERE t.system_task_key IS NOT NULL
+          AND t.due_date < NOW()
+          AND t.performance_impact_applied = false
+          AND s.id IS NULL; -- Ensures the task is not completed
+    `);
+
+    const overdueTasks = overdueTasksRes.rows;
+    if (overdueTasks.length === 0) {
+        console.log('No overdue system tasks to process.');
+        return { processed: 0, errors: 0 };
+    }
+
+    console.log(`Found ${overdueTasks.length} overdue system tasks to process.`);
+
+    let processedCount = 0;
+    let errorCount = 0;
+    for (const task of overdueTasks) {
+        // We assume the metric key for lateness is the system_task_key + '_LATE'
+        // e.g., 'TEACHER_GRADING' becomes 'TEACHER_GRADING_LATE'
+        const metricKey = `${task.system_task_key}_LATE`;
+        const notes = `Penalty for overdue task: '${task.title}' (ID: ${task.id})`;
+
+        try {
+            // Apply the performance change using the database function
+            await client.query(
+                `SELECT apply_performance_change($1, $2, 'task', $3, $4)`,
+                [task.assigned_to, metricKey, task.id, notes]
+            );
+
+            // Mark the task as processed to prevent duplicate penalties
+            await client.query(
+                'UPDATE tasks SET performance_impact_applied = true WHERE id = $1',
+                [task.id]
+            );
+            
+            processedCount++;
+            console.log(`Applied penalty for task ${task.id} to user ${task.assigned_to}.`);
+
+        } catch (err) {
+            errorCount++;
+            console.error(`Failed to process overdue task ${task.id} for user ${task.assigned_to}:`, err);
+            // We continue to the next task even if one fails
+        }
+    }
+
+    return { processed: processedCount, errors: errorCount };
+}
+
+
 export default async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ message: 'Method Not Allowed' });
@@ -22,7 +90,7 @@ export default async function handler(req, res) {
     }
     
     // Check for internal cron call with secret
-    const { cron_secret } = req.body;
+    const { cron_secret, evaluateAll } = req.body;
     if (cron_secret === process.env.CRON_SECRET) {
         isAuthorized = true;
         // Set a default admin role for cron calls
@@ -33,53 +101,68 @@ export default async function handler(req, res) {
         return res.status(401).json({ message: 'Not authenticated' });
     }
 
+    const client = await pool.connect();
     try {
-        
-        const { course_id: courseId, user_id: userId, evaluateAll } = req.body;
+        await client.query('BEGIN');
 
-        if (!courseId) {
+        let overdueResults = {};
+        // When called by the cron job, first evaluate overdue tasks system-wide
+        if (evaluateAll && cron_secret) {
+            overdueResults = await evaluateOverdueSystemTasks(client);
+        }
+        
+        const { course_id: courseId, user_id: userId } = req.body;
+
+        if (!courseId && evaluateAll) {
+             // This part of the original logic seems to require a courseId, 
+             // which might not be ideal for a system-wide cron.
+             // For now, we'll let it proceed, but this could be a point of failure if not handled.
+        } else if (!courseId) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ message: 'Course ID is required' });
         }
-
-        await pool.query('BEGIN');
 
         let evaluationResults = [];
 
         if (evaluateAll) {
-            // Evaluate all enrolled users in the course
+            // Original logic to evaluate all enrolled users in a course
             if (!['admin', 'head', 'teacher'].includes(decoded.role)) {
+                await client.query('ROLLBACK');
                 return res.status(403).json({ message: 'Not authorized to evaluate all users' });
             }
+            
+            if(courseId) { // Only run this if a courseId was provided
+                const enrolledUsers = await client.query(`
+                    SELECT DISTINCT e.user_id, u.full_name 
+                    FROM enrollments e 
+                    JOIN users u ON e.user_id = u.id 
+                    WHERE e.course_id = $1 AND e.status = 'active'
+                `, [courseId]);
 
-            const enrolledUsers = await pool.query(`
-                SELECT DISTINCT e.user_id, u.full_name 
-                FROM enrollments e 
-                JOIN users u ON e.user_id = u.id 
-                WHERE e.course_id = $1 AND e.status = 'active'
-            `, [courseId]);
-
-            for (const user of enrolledUsers.rows) {
-                const performance = await calculateUserPerformance(user.user_id, courseId);
-                await updateUserPerformanceRecord(user.user_id, courseId, performance);
-                evaluationResults.push({
-                    userId: user.user_id,
-                    userName: user.full_name,
-                    performance
-                });
+                for (const user of enrolledUsers.rows) {
+                    const performance = await calculateUserPerformance(client, user.user_id, courseId);
+                    await updateUserPerformanceRecord(client, user.user_id, courseId, performance);
+                    evaluationResults.push({
+                        userId: user.user_id,
+                        userName: user.full_name,
+                        performance
+                    });
+                }
             }
         } else {
             // Evaluate specific user
             if (!userId) {
+                await client.query('ROLLBACK');
                 return res.status(400).json({ message: 'User ID is required' });
             }
 
-            // Check authorization - users can evaluate themselves, supervisors can evaluate their subordinates
             if (decoded.id !== userId && !['admin', 'head', 'teacher'].includes(decoded.role)) {
+                await client.query('ROLLBACK');
                 return res.status(403).json({ message: 'Not authorized to evaluate this user' });
             }
 
-            const performance = await calculateUserPerformance(userId, courseId);
-            await updateUserPerformanceRecord(userId, courseId, performance);
+            const performance = await calculateUserPerformance(client, userId, courseId);
+            await updateUserPerformanceRecord(client, userId, courseId, performance);
             
             evaluationResults.push({
                 userId,
@@ -87,144 +170,45 @@ export default async function handler(req, res) {
             });
         }
 
-        await pool.query('COMMIT');
+        await client.query('COMMIT');
 
         res.status(200).json({
             success: true,
             message: 'Performance evaluation completed',
-            results: evaluationResults,
-            evaluatedCount: evaluationResults.length
+            overdueTasks: overdueResults,
+            courseEvaluations: {
+                results: evaluationResults,
+                evaluatedCount: evaluationResults.length
+            }
         });
 
     } catch (err) {
-        await pool.query('ROLLBACK');
+        await client.query('ROLLBACK');
         console.error('Performance evaluation error:', err);
         errorHandler(err, res);
+    } finally {
+        client.release();
     }
 }
 
-async function calculateUserPerformance(userId, courseId) {
+async function calculateUserPerformance(client, userId, courseId) {
     try {
-        // Use the database function to calculate performance
-        const result = await pool.query(
+        const result = await client.query(
             'SELECT calculate_user_performance($1, $2) as performance_data',
             [userId, courseId]
         );
-
         const performanceData = result.rows[0].performance_data;
-
-        if (performanceData.error) {
-            throw new Error(performanceData.error);
-        }
-
-        // Get additional metrics specific to user's level
-        const levelSpecificMetrics = await calculateLevelSpecificMetrics(userId, courseId, performanceData.level_number);
-
-        return {
-            ...performanceData,
-            ...levelSpecificMetrics,
-            last_updated: new Date().toISOString()
-        };
+        if (performanceData.error) throw new Error(performanceData.error);
+        return { ...performanceData, last_updated: new Date().toISOString() };
     } catch (error) {
-        console.error('Error calculating user performance:', error);
+        console.error(`Error in calculateUserPerformance for user ${userId}, course ${courseId}:`, error);
         throw error;
     }
 }
 
-async function calculateLevelSpecificMetrics(userId, courseId, levelNumber) {
-    const metrics = {};
-
+async function updateUserPerformanceRecord(client, userId, courseId, performanceData) {
     try {
-        if (levelNumber === 3) {
-            // Level 3 (Students/Recipients) - Focus on learning outcomes
-            const examResults = await pool.query(`
-                SELECT 
-                    COUNT(*) as total_exams,
-                    AVG(s.grade) as avg_exam_score,
-                    COUNT(CASE WHEN s.grade >= 60 THEN 1 END) as passed_exams
-                FROM tasks t 
-                JOIN submissions s ON t.id = s.task_id 
-                WHERE t.assigned_to = $1 AND t.course_id = $2 
-                AND t.task_type = 'exam' AND s.status = 'graded'
-            `, [userId, courseId]);
-
-            const homeworkResults = await pool.query(`
-                SELECT 
-                    COUNT(*) as total_homework,
-                    AVG(s.grade) as avg_homework_score,
-                    COUNT(CASE WHEN s.submitted_at <= t.due_date THEN 1 END) as on_time_submissions
-                FROM tasks t 
-                JOIN submissions s ON t.id = s.task_id 
-                WHERE t.assigned_to = $1 AND t.course_id = $2 
-                AND t.task_type = 'homework' AND s.status IN ('submitted', 'graded')
-            `, [userId, courseId]);
-
-            metrics.exam_performance = {
-                total_exams: examResults.rows[0].total_exams || 0,
-                avg_exam_score: parseFloat(examResults.rows[0].avg_exam_score || 0),
-                passed_exams: examResults.rows[0].passed_exams || 0,
-                pass_rate: examResults.rows[0].total_exams > 0 ? 
-                    (examResults.rows[0].passed_exams / examResults.rows[0].total_exams * 100) : 0
-            };
-
-            metrics.homework_performance = {
-                total_homework: homeworkResults.rows[0].total_homework || 0,
-                avg_homework_score: parseFloat(homeworkResults.rows[0].avg_homework_score || 0),
-                on_time_submissions: homeworkResults.rows[0].on_time_submissions || 0,
-                punctuality_rate: homeworkResults.rows[0].total_homework > 0 ? 
-                    (homeworkResults.rows[0].on_time_submissions / homeworkResults.rows[0].total_homework * 100) : 0
-            };
-
-        } else if (levelNumber === 2) {
-            // Level 2 (Teachers/Managers) - Focus on teaching and management
-            const evaluationTasks = await pool.query(`
-                SELECT 
-                    COUNT(*) as total_evaluations,
-                    COUNT(CASE WHEN s.status = 'submitted' THEN 1 END) as completed_evaluations
-                FROM tasks t 
-                LEFT JOIN submissions s ON t.id = s.task_id 
-                WHERE t.assigned_to = $1 AND t.course_id = $2 
-                AND t.task_type IN ('review', 'evaluation')
-            `, [userId, courseId]);
-
-            metrics.evaluation_performance = {
-                total_evaluations: evaluationTasks.rows[0].total_evaluations || 0,
-                completed_evaluations: evaluationTasks.rows[0].completed_evaluations || 0,
-                completion_rate: evaluationTasks.rows[0].total_evaluations > 0 ? 
-                    (evaluationTasks.rows[0].completed_evaluations / evaluationTasks.rows[0].total_evaluations * 100) : 0
-            };
-
-        } else if (levelNumber === 1) {
-            // Level 1 (Supervisors) - Focus on oversight and management
-            const supervisionTasks = await pool.query(`
-                SELECT 
-                    COUNT(*) as total_supervision_tasks,
-                    COUNT(CASE WHEN s.status = 'submitted' THEN 1 END) as completed_supervision
-                FROM tasks t 
-                LEFT JOIN submissions s ON t.id = s.task_id 
-                WHERE t.assigned_to = $1 AND t.course_id = $2 
-                AND t.task_type = 'review'
-            `, [userId, courseId]);
-
-            metrics.supervision_performance = {
-                total_supervision_tasks: supervisionTasks.rows[0].total_supervision_tasks || 0,
-                completed_supervision: supervisionTasks.rows[0].completed_supervision || 0,
-                supervision_rate: supervisionTasks.rows[0].total_supervision_tasks > 0 ? 
-                    (supervisionTasks.rows[0].completed_supervision / supervisionTasks.rows[0].total_supervision_tasks * 100) : 0
-            };
-        }
-
-        return metrics;
-    } catch (error) {
-        console.error('Error calculating level-specific metrics:', error);
-        return metrics;
-    }
-}
-
-async function updateUserPerformanceRecord(userId, courseId, performanceData) {
-    try {
-        // Update or insert performance evaluation record
-        await pool.query(`
+        await client.query(`
             INSERT INTO performance_evaluations (
                 user_id, course_id, level_number, task_completion_score,
                 quality_score, timeliness_score, overall_score, performance_data
@@ -239,25 +223,16 @@ async function updateUserPerformanceRecord(userId, courseId, performanceData) {
                 performance_data = EXCLUDED.performance_data,
                 updated_at = CURRENT_TIMESTAMP
         `, [
-            userId,
-            courseId,
+            userId, courseId,
             performanceData.level_number,
-            performanceData.completion_rate || 0,
+            performanceData.task_completion_rate || 0,
             performanceData.average_grade || 0,
             performanceData.on_time_completion_rate || 0,
             performanceData.overall_score || 0,
             JSON.stringify(performanceData)
         ]);
-
-        // Update enrollment grade
-        await pool.query(`
-            UPDATE enrollments 
-            SET grade = $1 
-            WHERE user_id = $2 AND course_id = $3
-        `, [JSON.stringify(performanceData), userId, courseId]);
-
     } catch (error) {
-        console.error('Error updating performance record:', error);
+        console.error(`Error in updateUserPerformanceRecord for user ${userId}, course ${courseId}:`, error);
         throw error;
     }
 }
